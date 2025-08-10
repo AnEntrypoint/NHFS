@@ -9,6 +9,7 @@ export default function FileIconMap(fileType: FileTypes): JSX.Element {
       return <FileIcon />;
     case 'symlink':
       return <FileRightIcon />;
+      // TODO: Add more icons according to file types (e.g video, code, pdf, etc.)
     default:
       return <FileIcon />;
   }
