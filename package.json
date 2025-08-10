@@ -14,7 +14,7 @@
     "format": "prettier -w ."
   },
   "bin": {
-    "nhfs": "./bin.js"
+    "nhfs": "bin.js"
   },
   "author": {
     "email": "alisanan9090@gmail.com",
@@ -24,7 +24,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AliSananS/NHFS.git"
+    "url": "git+https://github.com/AliSananS/NHFS.git"
   },
   "bugs": {
     "url": "https://github.com/AliSananS/NHFS/issues"
