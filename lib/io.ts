@@ -447,3 +447,5 @@ export async function writeFile(
     value: relPath,
   };
 }
+
+// TODO: Add directory size calculator
