@@ -1,3 +1,5 @@
+// TODO: Use only svg icons. Migrate from solar icons to copy-pasted svg paths
+
 import * as React from 'react';
 import { IconProps, SSR as ServerIcons } from '@solar-icons/react';
 
