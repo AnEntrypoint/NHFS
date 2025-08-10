@@ -1,4 +1,7 @@
 'use client';
+
+// TODO: Add multiple file selection feature.
+
 import path from 'path';
 
 import Link from 'next/link';
