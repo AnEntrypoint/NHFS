@@ -1,5 +1,8 @@
 'use client';
-
+/* TODO: Use `pathname` for breadcrumbs tree and get file stats.
+   Breadcrumbs don't work when there's a wrong (404) path in the url or some other error.
+   So it's better to render breadcrumbs according to the pathname as it provides better user experience.
+*/
 import path from 'path';
 
 import {
