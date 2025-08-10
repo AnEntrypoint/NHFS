@@ -77,10 +77,15 @@ Then open a PR from your fork to the `main` branch of this repo.
 
 ## 💡 Ideas for Contribution
 
+> [!NOTE]
+> **Look for `TODO:` in the project.**
+> There already is so much on todo, I highly recommend to take a look on these features and bug fixes.
+
 - Bug fixes
-- New file manager features (search, sort, filters, visual, animations, authentication, users)
+- New file features (search, sort, filters, visual, animations, authentication, users)
 - UI/UX improvements
 - Documentation
+
 
 ---
 
