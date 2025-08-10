@@ -16,6 +16,37 @@
   "bin": {
     "nhfs": "./bin.js"
   },
+    "author": {
+    "email": "alisanan9090@gmail.com",
+    "name": "Ali Sanan",
+    "url": "https://devshell.blog/about"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AliSananS/NHFS.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AliSananS/NHFS/issues"
+  },
+  "homepage": "https://github.com/AliSananS/NHFS#readme",
+  "keywords": [
+    "file-server",
+    "http-file-server",
+    "nextjs",
+    "nextjs-file-manager",
+    "heroui",
+    "react",
+    "file-manager",
+    "upload",
+    "drag-and-drop",
+    "nodejs",
+    "storage",
+    "file-upload",
+    "web-file-server",
+    "open-source",
+    "file-sharing"
+  ],
   "engines": {
     "node": ">=18.18.0"
   },
