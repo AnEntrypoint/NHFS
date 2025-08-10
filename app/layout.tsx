@@ -14,6 +14,7 @@ export const metadata: Metadata = {
     template: `%s - ${siteConfig.name}`,
   },
   description: siteConfig.description,
+  // TODO: Create a minimal logo and use it.
   icons: {
     icon: '/favicon.ico',
   },
