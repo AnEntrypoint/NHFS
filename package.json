@@ -1,6 +1,6 @@
 {
   "name": "nhfs",
-  "version": "0.1.33",
+  "version": "0.1.34",
   "description": "NHFS — A sleek HTTP file server for the web built with Next.js and HeroUI. (Alpha)",
   "private": false,
   "scripts": {
@@ -16,7 +16,7 @@
   "bin": {
     "nhfs": "./bin.js"
   },
-    "author": {
+  "author": {
     "email": "alisanan9090@gmail.com",
     "name": "Ali Sanan",
     "url": "https://devshell.blog/about"
