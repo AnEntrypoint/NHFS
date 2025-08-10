@@ -1,11 +1,23 @@
+
 # 📂 NHFS (Next-HTTP-File-Server)
 
-A **sleek and sexy** file manager built with **Next.js** and **HeroUI**.  
-Originally created as my **CS50x final project**, now evolving into a long-term side project.  
-Community pull requests are welcome.
+<div align="center" >
+  A <strong>sleek and sexy</strong> file manager built with <strong>Next.js</strong> and <strong>HeroUI</strong>.  
+  Originally created as my <strong>CS50x final project</strong> , now evolving into a long-term side project.  
+  Community pull requests are welcome.
+</div>
+
+---
+
+<img width="2255" height="1432" alt="Screenshot 2025-08-10 165040" src="https://github.com/user-attachments/assets/a268affb-8b85-40b6-854f-da550fdd49cd" />
 
 > [!WARNING]
 > **NHFS Is Still In Development** — Features are not well tested and may crash.
+
+
+## Demo
+https://github.com/user-attachments/assets/dba5e0af-5dd6-426b-9d02-068e272a30cb
+
 
 ---
 
