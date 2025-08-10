@@ -65,6 +65,9 @@ async function MainContent({ filesData }: { filesData: GetDataResult }) {
   );
 }
 
+
+// TODO: Create a separate file viewer component for videos, audios, images, text and probably pdf.
+// GET RID OF THIS!
 function FileViewer({ file }: { file: FileEntry }) {
   const fileUrl = sanitizeUrlPath(`/${file.path}?dl=true`);
 
