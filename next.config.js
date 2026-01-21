@@ -18,6 +18,10 @@ const nextConfig = {
       },
     ],
   },
+  typescript: {
+    tsconfigPath: './tsconfig.json',
+  },
+  swcMinify: true,
 };
 
 module.exports = nextConfig;

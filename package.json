@@ -6,7 +6,7 @@
   "scripts": {
     "dev": " echo http://localhost:3000/test-dir/ && next dev --turbopack",
     "build": "next build --turbo && npm run build:move",
-    "build:move": "cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/ && cp -rf .next/standalone ./dist",
+    "build:move": "rm -rf dist && mv .next/standalone dist && cp -r public dist/ && cp -r .next/static dist/.next/",
     "start": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
