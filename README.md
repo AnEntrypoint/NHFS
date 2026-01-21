@@ -99,7 +99,7 @@ npx nhfs -p 8080 -d ./files -h 0.0.0.0
 ### 1️⃣ Clone the repository
 
 ```bash
-git clone https://github.com/AliSananS/NHFS.git
+git clone https://github.com/AnEntrypoint/NHFS.git
 cd NHFS
 ```
 
