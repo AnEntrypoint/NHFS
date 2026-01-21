@@ -46,3 +46,6 @@ next-env.d.ts
 #lock files
 bun.lock
 package-lock.json
+
+# stop verification
+.glootie-stop-verified
