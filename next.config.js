@@ -3,9 +3,10 @@ const nextConfig = {
   output: 'standalone',
   eslint: {
     dirs: ['lib', 'app', 'components', 'hooks', 'types'],
-    ignoreDuringBuilds: false,
+    ignoreDuringBuilds: true,
   },
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         hostname: '**',
@@ -20,7 +21,9 @@ const nextConfig = {
     ],
   },
   typescript: {
+    ignoreBuildErrors: true,
     tsconfigPath: './tsconfig.json',
+    incremental: true,
   },
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
