@@ -2,34 +2,55 @@
 const nextConfig = {
   output: 'standalone',
   eslint: {
-    dirs: ['lib', 'app', 'components', 'hooks', 'types'],
     ignoreDuringBuilds: true,
   },
   images: {
     unoptimized: true,
-    remotePatterns: [
-      {
-        hostname: '**',
-        protocol: 'http',
-        port: '',
-      },
-      {
-        hostname: '**',
-        protocol: 'https',
-        port: '',
-      },
-    ],
   },
   typescript: {
     ignoreBuildErrors: true,
-    tsconfigPath: './tsconfig.json',
-    incremental: true,
   },
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
-  onDemandEntries: {
-    maxInactiveAge: 15 * 1000,
-    pagesBufferLength: 2,
+  outputFileTracingExcludes: {
+    '*': [
+      './node_modules/@swc/core-linux-x64-gnu',
+      './node_modules/@swc/core-linux-x64-musl',
+      './node_modules/@esbuild',
+      './node_modules/typescript',
+      './node_modules/prettier',
+      './node_modules/eslint',
+      './node_modules/@typescript-eslint',
+      './node_modules/@eslint',
+      './node_modules/postcss',
+      './node_modules/tailwindcss',
+      './node_modules/autoprefixer',
+    ],
+  },
+  experimental: {
+    optimizePackageImports: [
+      '@heroui/breadcrumbs',
+      '@heroui/button',
+      '@heroui/divider',
+      '@heroui/dropdown',
+      '@heroui/image',
+      '@heroui/input',
+      '@heroui/modal',
+      '@heroui/navbar',
+      '@heroui/progress',
+      '@heroui/switch',
+      '@heroui/system',
+      '@heroui/theme',
+      '@heroui/toast',
+      '@heroui/tooltip',
+      '@solar-icons/react',
+      'framer-motion',
+    ],
+    turbotrace: {
+      logLevel: 'error',
+      logDetail: false,
+      memoryLimit: 4096,
+    },
   },
 };
 
