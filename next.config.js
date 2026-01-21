@@ -21,11 +21,8 @@ const nextConfig = {
   },
   typescript: {
     tsconfigPath: './tsconfig.json',
-    incremental: true,
   },
-  swcMinify: true,
   productionBrowserSourceMaps: false,
-  compress: true,
   poweredByHeader: false,
   onDemandEntries: {
     maxInactiveAge: 15 * 1000,
