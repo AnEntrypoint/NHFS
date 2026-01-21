@@ -7,7 +7,10 @@
 - `typescript.ignoreBuildErrors: true` - Type checking during build significantly slows compilation
 - `images.unoptimized: true` - Image optimization adds substantial build time for standalone output
 - Turbopack (`next build --turbopack`) provides 2-5x faster production builds - available in Next.js 15.3+
+- `outputFileTracingExcludes` skips tracing dev-only packages (@swc, @esbuild, typescript, eslint, prettier, postcss, tailwindcss)
+- `turbotrace` enables faster native dependency tracing with memory limit
 - GitHub Actions workflow uses npm cache + Next.js build cache for faster CI
+- `legacy-peer-deps=true` in .npmrc required for @heroui peer dependency conflicts in CI
 
 ### Standalone Output Optimization
 - `output: 'standalone'` includes node_modules in .next/standalone, adding ~75MB to intermediate build artifact
