@@ -6,8 +6,8 @@
 - `eslint.ignoreDuringBuilds: true` - ESLint scanning during build was a major bottleneck
 - `typescript.ignoreBuildErrors: true` - Type checking during build significantly slows compilation
 - `images.unoptimized: true` - Image optimization adds substantial build time for standalone output
-- Turbopack (with `--turbo` flag) provides 2.9x faster builds (~52s vs 153s baseline) - confirmed working
-- `swcMinify: true` - Use SWC minifier for faster minification
+- Turbopack (`next build --turbopack`) provides 2-5x faster production builds - available in Next.js 15.3+
+- GitHub Actions workflow uses npm cache + Next.js build cache for faster CI
 
 ### Standalone Output Optimization
 - `output: 'standalone'` includes node_modules in .next/standalone, adding ~75MB to intermediate build artifact
