@@ -5,7 +5,7 @@
   "private": false,
   "scripts": {
     "dev": " echo http://localhost:3000/test-dir/ && next dev --turbopack",
-    "build": "next build --turbopack && npm run build:move",
+    "build": "next build --turbopack && pnpm run build:move",
     "build:move": "rm -rf dist && mv .next/standalone dist && cp -r public dist/ && cp -r .next/static dist/.next/ && rm -rf dist/node_modules",
     "start": "next start",
     "lint": "next lint",

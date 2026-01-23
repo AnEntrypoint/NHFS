@@ -49,3 +49,5 @@ package-lock.json
 
 # stop verification
 .glootie-stop-verified
+
+.code-search/
