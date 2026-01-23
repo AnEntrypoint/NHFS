@@ -1,4 +1,5 @@
 const app = {
+  basePath: window.BASEPATH || '',
   currentPath: './',
   selectedFile: null,
   renameFile: null,
@@ -9,6 +10,10 @@ const app = {
     this.setupFileInput();
     this.setupKeyboardShortcuts();
     await this.loadFiles();
+  },
+
+  api(path) {
+    return `${this.basePath}${path}`;
   },
 
   setupKeyboardShortcuts() {
@@ -49,7 +54,7 @@ const app = {
     }
 
     try {
-      const response = await fetch(`/api/upload?path=${encodeURIComponent(this.currentPath)}`, {
+      const response = await fetch(`${this.basePath}/api/upload?path=${encodeURIComponent(this.currentPath)}`, {
         method: 'POST',
         body: formData,
       });
@@ -67,7 +72,7 @@ const app = {
     this.clearError();
 
     try {
-      const response = await fetch(`/api/list/${encodeURIComponent(path)}`);
+      const response = await fetch(this.api(`/api/list/${encodeURIComponent(path)}`));
       if (!response.ok) throw new Error('Failed to load files');
 
       const result = await response.json();
@@ -137,7 +142,7 @@ const app = {
 
   startDragDownload(filePath) {
     const fileName = filePath.split('/').pop();
-    event.dataTransfer.setData('text/uri-list', `/api/download/${encodeURIComponent(filePath)}`);
+    event.dataTransfer.setData('text/uri-list', this.api(`/api/download/${encodeURIComponent(filePath)}`));
     event.dataTransfer.effectAllowed = 'copy';
   },
 
@@ -164,14 +169,14 @@ const app = {
     try {
       if (['image', 'video', 'audio'].includes(fileType)) {
         if (fileType === 'image') {
-          previewContainer.innerHTML = `<img src="/api/download/${encodeURIComponent(filePath)}" alt="${this.escapeHtml(fileName)}" class="preview-media">`;
+          previewContainer.innerHTML = `<img src="${this.api(`/api/download/${encodeURIComponent(filePath)}`)}" alt="${this.escapeHtml(fileName)}" class="preview-media">`;
         } else if (fileType === 'video') {
-          previewContainer.innerHTML = `<video controls class="preview-media"><source src="/api/download/${encodeURIComponent(filePath)}"></video>`;
+          previewContainer.innerHTML = `<video controls class="preview-media"><source src="${this.api(`/api/download/${encodeURIComponent(filePath)}`)}"></video>`;
         } else if (fileType === 'audio') {
-          previewContainer.innerHTML = `<audio controls style="width: 100%;"><source src="/api/download/${encodeURIComponent(filePath)}"></audio>`;
+          previewContainer.innerHTML = `<audio controls style="width: 100%;"><source src="${this.api(`/api/download/${encodeURIComponent(filePath)}`)}"></audio>`;
         }
       } else {
-        const response = await fetch(`/api/view/${encodeURIComponent(filePath)}`);
+        const response = await fetch(this.api(`/api/view/${encodeURIComponent(filePath)}`));
         if (!response.ok) throw new Error('Failed to load file');
 
         const result = await response.json();
@@ -212,7 +217,7 @@ const app = {
 
   downloadFile(filePath) {
     const fileName = filePath.split('/').pop();
-    window.location.href = `/api/download/${encodeURIComponent(filePath)}`;
+    window.location.href = this.api(`/api/download/${encodeURIComponent(filePath)}`);
   },
 
   startRename(filePath, fileName) {
@@ -235,7 +240,7 @@ const app = {
       formData.append('path', this.renameFile);
       formData.append('name', newName);
 
-      const response = await fetch('/api/rename', {
+      const response = await fetch(this.api('/api/rename'), {
         method: 'POST',
         body: formData,
       });
@@ -271,7 +276,7 @@ const app = {
       const formData = new FormData();
       formData.append('path', folderPath);
 
-      const response = await fetch('/api/mkdir', {
+      const response = await fetch(this.api('/api/mkdir'), {
         method: 'POST',
         body: formData,
       });
@@ -292,7 +297,7 @@ const app = {
     if (!confirm('Are you sure you want to delete this?')) return;
 
     try {
-      const response = await fetch(`/api/file/${encodeURIComponent(filePath)}`, {
+      const response = await fetch(this.api(`/api/file/${encodeURIComponent(filePath)}`), {
         method: 'DELETE',
       });
 

@@ -7,6 +7,12 @@ const Busboy = require('busboy');
 const app = express();
 const BASE_DIR = process.env.BASE_DIR || process.cwd();
 const PORT = process.env.PORT || 3000;
+const BASEPATH = (process.env.BASEPATH || '').replace(/\/$/, '');
+
+app.use((req, res, next) => {
+  res.locals.basePath = BASEPATH;
+  next();
+});
 
 const fileTypeMap = {
   image: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'],
@@ -56,6 +62,21 @@ async function checkPermissions(fullPath) {
     return 'EACCES';
   }
 }
+
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path === '/index.html') {
+    const fs = require('fs');
+    let html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf-8');
+    html = html.replace(
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js',
+      `<script>window.BASEPATH='${BASEPATH}';</script><script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js`
+    );
+    html = html.replace(/href="\/style\.css"/g, `href="${BASEPATH}/style.css"`);
+    res.type('text/html').send(html);
+  } else {
+    next();
+  }
+});
 
 app.use(express.static('public'));
 
