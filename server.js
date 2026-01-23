@@ -212,6 +212,37 @@ app.get('/api/download/:path(*)', async (req, res) => {
   }
 });
 
+app.get('/api/view/:path(*)', async (req, res) => {
+  try {
+    const relPath = req.params.path;
+    const resolved = resolveWithBaseDir(relPath);
+    if (!resolved.ok) return res.status(400).json({ ok: false, error: resolved.error });
+
+    const fullPath = resolved.path;
+    if (!fsSync.existsSync(fullPath)) {
+      return res.status(404).json({ ok: false, error: 'ENOENT' });
+    }
+
+    const stat = await fs.stat(fullPath);
+    if (stat.isDirectory()) {
+      return res.status(400).json({ ok: false, error: 'IS_DIRECTORY' });
+    }
+
+    if (stat.size > 5 * 1024 * 1024) {
+      return res.status(413).json({ ok: false, error: 'FILE_TOO_LARGE' });
+    }
+
+    const content = await fs.readFile(fullPath, 'utf-8').catch(() =>
+      fs.readFile(fullPath, 'binary').then(b => `[Binary file - ${stat.size} bytes]`)
+    );
+
+    res.json({ ok: true, value: content, size: stat.size });
+  } catch (err) {
+    console.error('Error in /api/view:', err);
+    res.status(500).json({ ok: false, error: 'UNKNOWN' });
+  }
+});
+
 app.delete('/api/file/:path(*)', async (req, res) => {
   try {
     const relPath = req.params.path;

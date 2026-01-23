@@ -2,11 +2,21 @@ const app = {
   currentPath: './',
   selectedFile: null,
   renameFile: null,
+  files: [],
 
   async init() {
     this.setupDragDrop();
     this.setupFileInput();
+    this.setupKeyboardShortcuts();
     await this.loadFiles();
+  },
+
+  setupKeyboardShortcuts() {
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') this.closePreview();
+      if (e.key === 'Escape') this.closeRename();
+      if (e.key === 'Escape') this.closeMkdir();
+    });
   },
 
   setupDragDrop() {
@@ -63,8 +73,9 @@ const app = {
       const result = await response.json();
       if (!result.ok) throw new Error(result.error);
 
+      this.files = result.value.children || [];
       this.renderBreadcrumbs(result.value.path);
-      this.renderFiles(result.value.children || []);
+      this.renderFiles(this.files);
     } catch (err) {
       this.showError(`Error loading files: ${err.message}`);
     } finally {
@@ -112,7 +123,8 @@ const app = {
           </div>
           <div class="file-actions">
             ${file.type === 'dir' ? `<button class="icon-btn" onclick="app.loadFiles('${file.path}')" title="Open">→</button>` : ''}
-            ${file.type !== 'dir' ? `<button class="icon-btn" onclick="app.downloadFile('${file.path}')" title="Download">⬇</button>` : ''}
+            ${file.type !== 'dir' ? `<button class="icon-btn" draggable="true" ondragstart="app.startDragDownload('${file.path}')" title="Drag to download" style="cursor: grab;">⬆</button>` : ''}
+            <button class="icon-btn" onclick="app.downloadFile('${file.path}')" title="Download">⬇</button>
             <button class="icon-btn" onclick="app.startRename('${file.path}', '${this.escapeHtml(file.name)}')" title="Rename">✎</button>
             <button class="icon-btn delete" onclick="app.deleteFile('${file.path}')" title="Delete">✕</button>
           </div>
@@ -121,6 +133,12 @@ const app = {
     }
 
     container.innerHTML = html;
+  },
+
+  startDragDownload(filePath) {
+    const fileName = filePath.split('/').pop();
+    event.dataTransfer.setData('text/uri-list', `/api/download/${encodeURIComponent(filePath)}`);
+    event.dataTransfer.effectAllowed = 'copy';
   },
 
   openFile(filePath, fileType) {
@@ -133,26 +151,58 @@ const app = {
     this.showPreview(filePath, fileType);
   },
 
-  showPreview(filePath, fileType) {
+  async showPreview(filePath, fileType) {
+    const modal = document.getElementById('previewModal');
     const previewContainer = document.getElementById('previewContainer');
     const previewName = document.getElementById('previewName');
     const fileName = filePath.split('/').pop();
 
     previewName.textContent = fileName;
+    previewContainer.innerHTML = '<div class="preview-loading"><div class="spinner"></div>Loading file...</div>';
+    modal.style.display = 'flex';
 
-    if (['image', 'video', 'audio'].includes(fileType)) {
-      if (fileType === 'image') {
-        previewContainer.innerHTML = `<img src="/api/download/${encodeURIComponent(filePath)}" alt="${this.escapeHtml(fileName)}">`;
-      } else if (fileType === 'video') {
-        previewContainer.innerHTML = `<video controls><source src="/api/download/${encodeURIComponent(filePath)}"></video>`;
-      } else if (fileType === 'audio') {
-        previewContainer.innerHTML = `<audio controls><source src="/api/download/${encodeURIComponent(filePath)}"></audio>`;
+    try {
+      if (['image', 'video', 'audio'].includes(fileType)) {
+        if (fileType === 'image') {
+          previewContainer.innerHTML = `<img src="/api/download/${encodeURIComponent(filePath)}" alt="${this.escapeHtml(fileName)}" class="preview-media">`;
+        } else if (fileType === 'video') {
+          previewContainer.innerHTML = `<video controls class="preview-media"><source src="/api/download/${encodeURIComponent(filePath)}"></video>`;
+        } else if (fileType === 'audio') {
+          previewContainer.innerHTML = `<audio controls style="width: 100%;"><source src="/api/download/${encodeURIComponent(filePath)}"></audio>`;
+        }
+      } else {
+        const response = await fetch(`/api/view/${encodeURIComponent(filePath)}`);
+        if (!response.ok) throw new Error('Failed to load file');
+
+        const result = await response.json();
+        if (!result.ok) throw new Error(result.error);
+
+        const ext = fileName.split('.').pop().toLowerCase();
+        let html = '';
+
+        if (['json'].includes(ext)) {
+          try {
+            const formatted = JSON.stringify(JSON.parse(result.value), null, 2);
+            html = `<pre class="preview-text"><code>${this.escapeHtml(formatted)}</code></pre>`;
+          } catch {
+            html = `<pre class="preview-text"><code>${this.escapeHtml(result.value)}</code></pre>`;
+          }
+        } else if (['md', 'markdown', 'txt', 'log'].includes(ext)) {
+          html = `<pre class="preview-text"><code>${this.escapeHtml(result.value)}</code></pre>`;
+        } else if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css', 'html', 'xml', 'yaml', 'yml', 'sh', 'bash', 'go', 'rs', 'java', 'kotlin', 'swift'].includes(ext)) {
+          html = `<pre class="preview-code"><code class="language-${ext}">${this.escapeHtml(result.value)}</code></pre>`;
+          previewContainer.innerHTML = html;
+          if (window.hljs) window.hljs.highlightAll();
+          return;
+        } else {
+          html = `<pre class="preview-text"><code>${this.escapeHtml(result.value.substring(0, 10000))}${result.value.length > 10000 ? '\n\n... (file truncated)' : ''}</code></pre>`;
+        }
+
+        previewContainer.innerHTML = html;
       }
-    } else {
-      previewContainer.innerHTML = `<p class="preview-text">File: ${this.escapeHtml(fileName)}</p>`;
+    } catch (err) {
+      previewContainer.innerHTML = `<div class="preview-error">Error loading file: ${this.escapeHtml(err.message)}</div>`;
     }
-
-    document.getElementById('previewModal').style.display = 'flex';
   },
 
   closePreview() {
@@ -170,6 +220,7 @@ const app = {
     document.getElementById('renameInput').value = fileName;
     document.getElementById('renameModal').style.display = 'flex';
     document.getElementById('renameInput').focus();
+    document.getElementById('renameInput').select();
   },
 
   async confirmRename() {
@@ -254,30 +305,23 @@ const app = {
 
   getFileIcon(type) {
     const icons = {
-      image: '🖼',
-      video: '🎬',
-      audio: '🎵',
-      text: '📄',
-      code: '💻',
-      archive: '📦',
-      document: '📋',
-      dir: '📁',
-      symlink: '🔗',
-      other: '📝',
+      dir: '📁', image: '🖼️', video: '🎬', audio: '🎵',
+      code: '💻', text: '📝', archive: '📦', document: '📄',
+      other: '📋'
     };
     return icons[type] || icons.other;
   },
 
   formatSize(bytes) {
-    if (!bytes) return '0 B';
+    if (!bytes) return '-';
     const units = ['B', 'KB', 'MB', 'GB'];
     let size = bytes;
-    let unitIdx = 0;
-    while (size >= 1024 && unitIdx < units.length - 1) {
+    let unit = 0;
+    while (size >= 1024 && unit < units.length - 1) {
       size /= 1024;
-      unitIdx++;
+      unit++;
     }
-    return `${size.toFixed(1)} ${units[unitIdx]}`;
+    return `${size.toFixed(1)} ${units[unit]}`;
   },
 
   escapeHtml(text) {
@@ -291,14 +335,14 @@ const app = {
   },
 
   showError(message) {
-    const errorBox = document.getElementById('error');
-    errorBox.textContent = message;
-    errorBox.style.display = 'block';
+    const box = document.getElementById('error');
+    box.textContent = message;
+    box.style.display = 'block';
   },
 
   clearError() {
     document.getElementById('error').style.display = 'none';
-  },
+  }
 };
 
-document.addEventListener('DOMContentLoaded', () => app.init());
+window.addEventListener('DOMContentLoaded', () => app.init());

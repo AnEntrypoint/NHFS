@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NHFS - File Server</title>
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </head>
 <body>
   <div id="app">
@@ -42,18 +44,20 @@
     </main>
   </div>
 
-  <div id="previewModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <button class="modal-close" onclick="app.closePreview()">×</button>
+  <div id="previewModal" class="modal" style="display: none;" onclick="if(event.target === this) app.closePreview()">
+    <div class="modal-content preview-modal">
+      <div class="modal-header">
+        <p id="previewName" class="preview-name"></p>
+        <button class="modal-close" onclick="app.closePreview()">✕</button>
+      </div>
       <div id="previewContainer" class="preview-container"></div>
-      <p id="previewName" class="preview-name"></p>
     </div>
   </div>
 
-  <div id="renameModal" class="modal" style="display: none;">
+  <div id="renameModal" class="modal" style="display: none;" onclick="if(event.target === this) app.closeRename()">
     <div class="modal-content modal-small">
       <h2>Rename</h2>
-      <input type="text" id="renameInput" placeholder="New name">
+      <input type="text" id="renameInput" placeholder="New name" onkeydown="if(event.key === 'Enter') app.confirmRename()">
       <div class="modal-actions">
         <button class="btn btn-primary" onclick="app.confirmRename()">Rename</button>
         <button class="btn btn-secondary" onclick="app.closeRename()">Cancel</button>
@@ -61,10 +65,10 @@
     </div>
   </div>
 
-  <div id="mkdirModal" class="modal" style="display: none;">
+  <div id="mkdirModal" class="modal" style="display: none;" onclick="if(event.target === this) app.closeMkdir()">
     <div class="modal-content modal-small">
       <h2>New Folder</h2>
-      <input type="text" id="mkdirInput" placeholder="Folder name">
+      <input type="text" id="mkdirInput" placeholder="Folder name" onkeydown="if(event.key === 'Enter') app.confirmMkdir()">
       <div class="modal-actions">
         <button class="btn btn-primary" onclick="app.confirmMkdir()">Create</button>
         <button class="btn btn-secondary" onclick="app.closeMkdir()">Cancel</button>
