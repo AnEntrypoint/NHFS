@@ -36,6 +36,20 @@
 - No build artifacts, no .next folder, no dist directory needed
 - Direct execution: `node server.js`
 
+### File Viewing Implementation
+- `/api/view/:path` endpoint reads files up to 5MB limit for preview
+- UTF-8 decoding with binary fallback detection (shows "[Binary file - X bytes]" for non-text)
+- Syntax highlighting via highlight.js CDN (atom-one-dark theme) - not bundled to keep code lean
+- File type detection by extension determines rendering strategy:
+  - Code (js/ts/py/go/rs/etc): syntax highlighted via hljs.highlightAll()
+  - JSON: formatted with JSON.parse/stringify then escaped for safety
+  - Text/MD/Log: plaintext in preformatted code blocks
+  - Images/Video/Audio: HTML5 native players (img/video/audio elements)
+  - Other: raw text up to 10KB with truncation warning
+- Modal keyboard shortcuts: ESC to close, Enter to submit in forms
+- Drag-download: uses dataTransfer.setData('text/uri-list') for OS integration
+- All text content escaped via textContent/escapeHtml() to prevent XSS injection
+
 ### Why This Works
 - File server needs: REST API for file ops + static HTML UI
 - Does NOT need: SSR, JSX compilation, styled-components, TypeScript types, build optimization
