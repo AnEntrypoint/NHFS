@@ -17,6 +17,13 @@
 - Build script uses `mv` (move) instead of `cp` (copy) for .next/standalone to reduce I/O overhead
 - Must explicitly remove node_modules from final dist to keep output lean
 
+### Build Speed Fundamentals
+- Turbopack compilation: ~39.5s minimum (profiled with all optimizations applied)
+- Cannot do buildless: requires server-side routes, TypeScript compilation, JSX bundling, static generation, standalone mode
+- Vite incompatible: frontend-only bundler without server-side routing or middleware support
+- Build time is fundamentally limited by Turbopack's TypeScript+JSX compilation, not configuration
+- Further speedups would require framework migration (unfeasible for production app)
+
 ### Port Conflicts
 - Default port 3000 may already be in use when testing the standalone server
 - Use PORT environment variable to override: `PORT=3001 node dist/server.js`
