@@ -1,31 +1,43 @@
 # Technical Caveats
 
-## Build Performance
+## Buildless Architecture (v0.2.0+)
 
-### Critical Build Speed Optimizations
-- `eslint.ignoreDuringBuilds: true` - ESLint scanning during build was a major bottleneck
-- `typescript.ignoreBuildErrors: true` - Type checking during build significantly slows compilation
-- `images.unoptimized: true` - Image optimization adds substantial build time for standalone output
-- Turbopack (`next build --turbopack`) provides 2-5x faster production builds - available in Next.js 15.3+
-- `outputFileTracingExcludes` skips tracing dev-only packages (@swc, @esbuild, typescript, eslint, prettier, postcss, tailwindcss)
-- `turbotrace` enables faster native dependency tracing with memory limit
-- GitHub Actions workflow uses npm cache + Next.js build cache for faster CI
-- `legacy-peer-deps=true` in .npmrc required for @heroui peer dependency conflicts in CI
+### Architecture Transformation
+- Migrated from Next.js+React+HeroUI bloat to minimal Express+Vanilla JavaScript
+- Achieves 99.4% reduction in node_modules (746MB → 4.7MB)
+- Zero build step required - serve HTML/CSS/JS as-is
+- Cold start: ~1 second (was 30+ seconds with Turbopack builds)
+- Source code: 1161 lines total (was 3105 LOC)
+- Dependencies: 2 prod packages only (express, busboy)
 
-### Standalone Output Optimization
-- `output: 'standalone'` includes node_modules in .next/standalone, adding ~75MB to intermediate build artifact
-- Build script uses `mv` (move) instead of `cp` (copy) for .next/standalone to reduce I/O overhead
-- Must explicitly remove node_modules from final dist to keep output lean
+### Backend (Express + Busboy)
+- Single server.js file handles all file operations
+- Path injection prevention: `path.normalize()` + `resolveWithBaseDir()` validates all paths stay within BASE_DIR
+- Multipart upload via busboy streaming (no memory buffer for large files)
+- File operations: list, upload, download, delete, rename, move, mkdir
+- All endpoints return JSON with consistent {ok, value/error} response format
+- File type detection via extension mapping (image, video, audio, text, code, archive, document)
+- Permission checks via fs.access() with granular read/write flags
 
-### Build Speed & CI Bottleneck
-- **GitHub CI bottleneck: npm install (60-90s), not build** - Turbopack compilation only 39.5s
-- **Cache hit CI**: 2-3 minutes (normal runs with cache)
-- **Cache miss CI**: 10-15 minutes (first run, dependency changes)
-- **Solution: Migrated to pnpm** for 30-40% faster installs (~40-50s instead of 60-90s)
-- Cannot do buildless: requires server-side routes, TypeScript compilation, JSX bundling, static generation, standalone mode
-- WebJSX incompatible: client-only, no server routes, no filesystem access, no standalone binary support
-- Turbopack compilation: ~39.5s minimum (unavoidable for TypeScript+JSX+standalone output)
+### Frontend (Vanilla JavaScript)
+- Single index.html with no build step
+- app.js handles all UI logic without React/Framework dependencies
+- Fetch API for backend communication
+- Drag-drop upload with progress tracking
+- Preview support: inline images, HTML5 audio/video players
+- Breadcrumb navigation with history
+- Dark mode via CSS prefers-color-scheme media query
+- Responsive design: mobile-optimized layout
 
-### Port Conflicts
-- Default port 3000 may already be in use when testing the standalone server
-- Use PORT environment variable to override: `PORT=3001 node dist/server.js`
+### Deployment Considerations
+- Serve public/ directory as static root via Express
+- BASE_DIR environment variable controls accessible filesystem
+- PORT environment variable overrides default 3000
+- No build artifacts, no .next folder, no dist directory needed
+- Direct execution: `node server.js`
+
+### Why This Works
+- File server needs: REST API for file ops + static HTML UI
+- Does NOT need: SSR, JSX compilation, styled-components, TypeScript types, build optimization
+- Vanilla JS perfectly adequate for client-side interactivity
+- Express sufficient for file operations without Next.js framework overhead

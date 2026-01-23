@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NHFS - File Server</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <nav class="navbar">
+      <div class="nav-content">
+        <h1 class="logo">NHFS</h1>
+        <div class="breadcrumbs" id="breadcrumbs"></div>
+      </div>
+    </nav>
+
+    <main class="container">
+      <div class="toolbar">
+        <div class="upload-area" id="uploadArea">
+          <input type="file" id="fileInput" multiple style="display: none;">
+          <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+            Upload Files
+          </button>
+          <span class="upload-text">or drag and drop files</span>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-secondary" onclick="app.showCreateFolder()">New Folder</button>
+          <button class="btn btn-secondary" onclick="location.reload()">Refresh</button>
+        </div>
+      </div>
+
+      <div id="fileList" class="file-list"></div>
+
+      <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+      </div>
+
+      <div id="error" class="error-box" style="display: none;"></div>
+    </main>
+  </div>
+
+  <div id="previewModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <button class="modal-close" onclick="app.closePreview()">×</button>
+      <div id="previewContainer" class="preview-container"></div>
+      <p id="previewName" class="preview-name"></p>
+    </div>
+  </div>
+
+  <div id="renameModal" class="modal" style="display: none;">
+    <div class="modal-content modal-small">
+      <h2>Rename</h2>
+      <input type="text" id="renameInput" placeholder="New name">
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="app.confirmRename()">Rename</button>
+        <button class="btn btn-secondary" onclick="app.closeRename()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mkdirModal" class="modal" style="display: none;">
+    <div class="modal-content modal-small">
+      <h2>New Folder</h2>
+      <input type="text" id="mkdirInput" placeholder="Folder name">
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="app.confirmMkdir()">Create</button>
+        <button class="btn btn-secondary" onclick="app.closeMkdir()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
