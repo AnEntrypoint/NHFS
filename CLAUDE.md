@@ -31,10 +31,12 @@
 
 ### Deployment Considerations
 - Serve public/ directory as static root via Express
-- BASE_DIR environment variable controls accessible filesystem
+- BASE_DIR environment variable controls accessible filesystem (defaults to /files)
 - PORT environment variable overrides default 3000
+- BASEPATH environment variable for deployment under URL subpath (e.g., /api/files)
 - No build artifacts, no .next folder, no dist directory needed
 - Direct execution: `node server.js`
+- Path injection prevention: all paths validated via resolveWithBaseDir() - cannot escape BASE_DIR
 
 ### File Viewing Implementation
 - `/api/view/:path` endpoint reads files up to 5MB limit for preview

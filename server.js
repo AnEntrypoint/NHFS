@@ -5,7 +5,7 @@ const path = require('path');
 const Busboy = require('busboy');
 
 const app = express();
-const BASE_DIR = process.env.BASE_DIR || process.cwd();
+const BASE_DIR = process.env.BASE_DIR || '/files';
 const PORT = process.env.PORT || 3000;
 const BASEPATH = (process.env.BASEPATH || '').replace(/\/$/, '');
 

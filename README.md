@@ -34,7 +34,8 @@ Open `http://localhost:3000`
 
 ```bash
 PORT=3000           # Server port (default: 3000)
-BASE_DIR=/home      # Directory to serve (default: current directory)
+BASE_DIR=/files     # Directory to serve (default: /files)
+BASEPATH=           # URL subpath prefix (default: empty, e.g., /files for http://example.com/files/...)
 ```
 
 ---
