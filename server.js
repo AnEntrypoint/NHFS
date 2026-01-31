@@ -75,6 +75,7 @@ app.use((req, res, next) => {
       `<script>window.BASEPATH='${BASEPATH}';</script><script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js`
     );
     html = html.replace(/href="\/style\.css"/g, `href="${BASEPATH}/style.css"`);
+    html = html.replace(/src="\/app\.js"/g, `src="${BASEPATH}/app.js"`);
     res.type('text/html').send(html);
   } else {
     next();
