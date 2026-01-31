@@ -11,6 +11,9 @@ const BASEPATH = (process.env.BASEPATH || '').replace(/\/$/, '');
 
 app.use((req, res, next) => {
   res.locals.basePath = BASEPATH;
+  if (BASEPATH && req.path.startsWith(BASEPATH)) {
+    req.url = req.url.slice(BASEPATH.length) || '/';
+  }
   next();
 });
 
