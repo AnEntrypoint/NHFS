@@ -212,8 +212,8 @@ function pickFiles() {
 
 function App() {
     const segs = pathSegments();
-    const main = h('div', { style: 'padding: 18px 24px' },
-        state.error ? h('div', { class: 'ds-error', style: 'background:var(--flame);color:var(--ink);padding:10px 14px;border-radius:10px;margin-bottom:14px;cursor:pointer', onclick: () => { state.error = null; render(); } }, state.error + ' (click to dismiss)') : null,
+    const main = h('div', { class: 'ds-file-stage' },
+        state.error ? h('div', { class: 'ds-error-banner', onclick: () => { state.error = null; render(); } }, state.error + ' (click to dismiss)') : null,
         C.BreadcrumbPath({
             segments: segs,
             root: appName,
@@ -226,7 +226,7 @@ function App() {
                 C.Btn({ onClick: () => loadFiles(state.currentPath), children: '↻ refresh' })
             ],
             right: [
-                h('span', { class: 'meta', style: 'color:var(--panel-text-3);font-family:var(--ff-mono);font-size:12px' },
+                h('span', { class: 'meta ds-meta-mono' },
                     state.loading ? 'loading…' : String(state.files.length).padStart(2, '0') + ' items'
                 )
             ]

@@ -19,10 +19,11 @@ function sanitizePath(p) {
 }
 
 function makeResolver(baseDir) {
+  const normalizedBase = path.resolve(baseDir);
   return function resolveWithBaseDir(relPath) {
     const sanitized = sanitizePath(relPath);
-    const fullPath = path.resolve(baseDir, sanitized);
-    if (!fullPath.startsWith(baseDir)) {
+    const fullPath = path.resolve(normalizedBase, sanitized);
+    if (!fullPath.startsWith(normalizedBase)) {
       return { ok: false, error: 'EPATHINJECTION' };
     }
     return { ok: true, path: fullPath };
