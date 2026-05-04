@@ -1,384 +1,293 @@
-const app = {
-  basePath: window.BASEPATH || '',
-  currentPath: './',
-  selectedFile: null,
-  renameFile: null,
-  files: [],
+import {
+    h, applyDiff, components as C
+} from 'anentrypoint-design';
 
-  async init() {
-    this.setupThemeSync();
-    this.setupDragDrop();
-    this.setupFileInput();
-    this.setupKeyboardShortcuts();
-    await this.loadFiles();
-  },
+const basePath = window.BASEPATH || '';
+const appName = window.APP_NAME || 'fsbrowse';
 
-  api(path) {
-    return `${this.basePath}${path}`;
-  },
-
-  setupThemeSync() {
-    const keys = (window.THEME_KEYS || 'gmgui-theme,theme').split(',').map(k => k.trim());
-
-    const syncTheme = () => {
-      let theme = null;
-      for (const key of keys) {
-        const val = localStorage.getItem(key);
-        if (val === 'dark' || val === 'light') { theme = val; break; }
-      }
-      if (!theme) theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      document.documentElement.className = theme;
-      document.documentElement.setAttribute('data-theme', theme);
-    };
-
-    syncTheme();
-
-    window.addEventListener('storage', e => {
-      if (keys.includes(e.key)) syncTheme();
-    });
-
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
-  },
-
-  setupKeyboardShortcuts() {
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') this.closePreview();
-      if (e.key === 'Escape') this.closeRename();
-      if (e.key === 'Escape') this.closeMkdir();
-    });
-  },
-
-  setupDragDrop() {
-    const uploadArea = document.getElementById('uploadArea');
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
-      uploadArea.addEventListener(evt, e => e.preventDefault());
-      document.addEventListener(evt, e => e.preventDefault());
-    });
-
-    uploadArea.addEventListener('dragover', () => uploadArea.classList.add('dragover'));
-    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
-    uploadArea.addEventListener('drop', e => {
-      uploadArea.classList.remove('dragover');
-      this.handleFiles(e.dataTransfer.files);
-    });
-  },
-
-  setupFileInput() {
-    document.getElementById('fileInput').addEventListener('change', e => {
-      this.handleFiles(e.target.files);
-    });
-  },
-
-  async handleFiles(files) {
-    if (!files.length) return;
-
-    const formData = new FormData();
-    for (const file of files) {
-      formData.append('files', file);
-    }
-
-    try {
-      const response = await fetch(`${this.basePath}/api/upload?path=${encodeURIComponent(this.currentPath)}`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-      await this.loadFiles();
-    } catch (err) {
-      this.showError(`Upload error: ${err.message}`);
-    }
-  },
-
-  async loadFiles(path = './') {
-    this.currentPath = path;
-    this.showLoading(true);
-    this.clearError();
-
-    try {
-      const response = await fetch(this.api(`/api/list/${encodeURIComponent(path)}`));
-      if (!response.ok) throw new Error('Failed to load files');
-
-      const result = await response.json();
-      if (!result.ok) throw new Error(result.error);
-
-      this.files = result.value.children || [];
-      this.renderBreadcrumbs(result.value.path);
-      this.renderFiles(this.files);
-    } catch (err) {
-      this.showError(`Error loading files: ${err.message}`);
-    } finally {
-      this.showLoading(false);
-    }
-  },
-
-  escapeAttr(text) {
-    return String(text).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  },
-
-  renderBreadcrumbs(currentPath) {
-    const container = document.getElementById('breadcrumbs');
-    const parts = currentPath === './' ? [] : currentPath.split('/').filter(Boolean);
-
-    let html = '<button class="breadcrumb-btn" onclick="app.loadFiles(\'./\')">Root</button>';
-
-    let path = './';
-    for (const part of parts) {
-      path = path === './' ? `./${part}` : `${path}/${part}`;
-      html += `<span class="breadcrumb-sep">/</span><button class="breadcrumb-btn" onclick="app.loadFiles('${this.escapeAttr(path)}')">${this.escapeHtml(part)}</button>`;
-    }
-
-    container.innerHTML = html;
-  },
-
-  renderFiles(files) {
-    const container = document.getElementById('fileList');
-
-    if (!files.length) {
-      container.innerHTML = '<div class="empty-state">No files</div>';
-      return;
-    }
-
-    let html = '';
-    for (const file of files) {
-      const icon = this.getFileIcon(file.type);
-      const size = file.type === 'dir' ? '-' : this.formatSize(file.size);
-      const date = new Date(file.time?.modified).toLocaleDateString();
-      const safePath = this.escapeAttr(file.path);
-      const safeType = this.escapeAttr(file.type);
-      const safeName = this.escapeAttr(file.name);
-
-      html += `
-        <div class="file-row" data-path="${safePath}" data-type="${safeType}">
-          <div class="file-info">
-            <span class="file-icon">${icon}</span>
-            <div class="file-details">
-              <div class="file-name" onclick="app.openFile('${safePath}', '${safeType}')">${this.escapeHtml(file.name)}</div>
-              <div class="file-meta">${size} · ${date}</div>
-            </div>
-          </div>
-          <div class="file-actions">
-            ${file.type === 'dir' ? `<button class="icon-btn" onclick="app.loadFiles('${safePath}')" title="Open">→</button>` : ''}
-            ${file.type !== 'dir' ? `<button class="icon-btn" draggable="true" ondragstart="app.startDragDownload('${safePath}')" title="Drag to download" style="cursor: grab;">⬆</button>` : ''}
-            <button class="icon-btn" onclick="app.downloadFile('${safePath}')" title="Download">⬇</button>
-            <button class="icon-btn" onclick="app.startRename('${safePath}', '${safeName}')" title="Rename">✎</button>
-            <button class="icon-btn delete" onclick="app.deleteFile('${safePath}')" title="Delete">✕</button>
-          </div>
-        </div>
-      `;
-    }
-
-    container.innerHTML = html;
-  },
-
-  startDragDownload(filePath) {
-    const fileName = filePath.split('/').pop();
-    event.dataTransfer.setData('text/uri-list', this.api(`/api/download/${encodeURIComponent(filePath)}`));
-    event.dataTransfer.effectAllowed = 'copy';
-  },
-
-  openFile(filePath, fileType) {
-    if (fileType === 'dir') {
-      this.loadFiles(filePath);
-      return;
-    }
-
-    this.selectedFile = filePath;
-    this.showPreview(filePath, fileType);
-  },
-
-  async showPreview(filePath, fileType) {
-    const modal = document.getElementById('previewModal');
-    const previewContainer = document.getElementById('previewContainer');
-    const previewName = document.getElementById('previewName');
-    const fileName = filePath.split('/').pop();
-
-    previewName.textContent = fileName;
-    previewContainer.innerHTML = '<div class="preview-loading"><div class="spinner"></div>Loading file...</div>';
-    modal.style.display = 'flex';
-
-    try {
-      if (['image', 'video', 'audio'].includes(fileType)) {
-        if (fileType === 'image') {
-          previewContainer.innerHTML = `<img src="${this.api(`/api/download/${encodeURIComponent(filePath)}`)}" alt="${this.escapeHtml(fileName)}" class="preview-media">`;
-        } else if (fileType === 'video') {
-          previewContainer.innerHTML = `<video controls class="preview-media"><source src="${this.api(`/api/download/${encodeURIComponent(filePath)}`)}"></video>`;
-        } else if (fileType === 'audio') {
-          previewContainer.innerHTML = `<audio controls style="width: 100%;"><source src="${this.api(`/api/download/${encodeURIComponent(filePath)}`)}"></audio>`;
-        }
-      } else {
-        const response = await fetch(this.api(`/api/view/${encodeURIComponent(filePath)}`));
-        if (!response.ok) throw new Error('Failed to load file');
-
-        const result = await response.json();
-        if (!result.ok) throw new Error(result.error);
-
-        const ext = fileName.split('.').pop().toLowerCase();
-        let html = '';
-
-        if (['json'].includes(ext)) {
-          try {
-            const formatted = JSON.stringify(JSON.parse(result.value), null, 2);
-            html = `<pre class="preview-text"><code>${this.escapeHtml(formatted)}</code></pre>`;
-          } catch {
-            html = `<pre class="preview-text"><code>${this.escapeHtml(result.value)}</code></pre>`;
-          }
-        } else if (['md', 'markdown', 'txt', 'log'].includes(ext)) {
-          html = `<pre class="preview-text"><code>${this.escapeHtml(result.value)}</code></pre>`;
-        } else if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'css', 'html', 'xml', 'yaml', 'yml', 'sh', 'bash', 'go', 'rs', 'java', 'kotlin', 'swift'].includes(ext)) {
-          html = `<pre class="preview-code"><code class="language-${ext}">${this.escapeHtml(result.value)}</code></pre>`;
-          previewContainer.innerHTML = html;
-          if (window.hljs) window.hljs.highlightAll();
-          return;
-        } else {
-          html = `<pre class="preview-text"><code>${this.escapeHtml(result.value.substring(0, 10000))}${result.value.length > 10000 ? '\n\n... (file truncated)' : ''}</code></pre>`;
-        }
-
-        previewContainer.innerHTML = html;
-      }
-    } catch (err) {
-      previewContainer.innerHTML = `<div class="preview-error">Error loading file: ${this.escapeHtml(err.message)}</div>`;
-    }
-  },
-
-  closePreview() {
-    document.getElementById('previewModal').style.display = 'none';
-    this.selectedFile = null;
-  },
-
-  downloadFile(filePath) {
-    const fileName = filePath.split('/').pop();
-    window.location.href = this.api(`/api/download/${encodeURIComponent(filePath)}`);
-  },
-
-  startRename(filePath, fileName) {
-    this.renameFile = filePath;
-    document.getElementById('renameInput').value = fileName;
-    document.getElementById('renameModal').style.display = 'flex';
-    document.getElementById('renameInput').focus();
-    document.getElementById('renameInput').select();
-  },
-
-  async confirmRename() {
-    const newName = document.getElementById('renameInput').value.trim();
-    if (!newName) {
-      this.showError('Please enter a name');
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('path', this.renameFile);
-      formData.append('name', newName);
-
-      const response = await fetch(this.api('/api/rename'), {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Rename failed');
-      this.closeRename();
-      await this.loadFiles(this.currentPath);
-    } catch (err) {
-      this.showError(`Rename error: ${err.message}`);
-    }
-  },
-
-  closeRename() {
-    document.getElementById('renameModal').style.display = 'none';
-    this.renameFile = null;
-  },
-
-  showCreateFolder() {
-    document.getElementById('mkdirInput').value = '';
-    document.getElementById('mkdirModal').style.display = 'flex';
-    document.getElementById('mkdirInput').focus();
-  },
-
-  async confirmMkdir() {
-    const folderName = document.getElementById('mkdirInput').value.trim();
-    if (!folderName) {
-      this.showError('Please enter a folder name');
-      return;
-    }
-
-    try {
-      const folderPath = this.currentPath === './' ? `./${folderName}` : `${this.currentPath}/${folderName}`;
-      const formData = new FormData();
-      formData.append('path', folderPath);
-
-      const response = await fetch(this.api('/api/mkdir'), {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Create folder failed');
-      this.closeMkdir();
-      await this.loadFiles(this.currentPath);
-    } catch (err) {
-      this.showError(`Error creating folder: ${err.message}`);
-    }
-  },
-
-  closeMkdir() {
-    document.getElementById('mkdirModal').style.display = 'none';
-  },
-
-  async deleteFile(filePath) {
-    if (!confirm('Are you sure you want to delete this?')) return;
-
-    try {
-      const response = await fetch(this.api(`/api/file/${encodeURIComponent(filePath)}`), {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) throw new Error('Delete failed');
-      await this.loadFiles(this.currentPath);
-    } catch (err) {
-      this.showError(`Delete error: ${err.message}`);
-    }
-  },
-
-  getFileIcon(type) {
-    const icons = {
-      dir: '📁', image: '🖼️', video: '🎬', audio: '🎵',
-      code: '💻', text: '📝', archive: '📦', document: '📄',
-      other: '📋'
-    };
-    return icons[type] || icons.other;
-  },
-
-  formatSize(bytes) {
-    if (!bytes) return '-';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unit = 0;
-    while (size >= 1024 && unit < units.length - 1) {
-      size /= 1024;
-      unit++;
-    }
-    return `${size.toFixed(1)} ${units[unit]}`;
-  },
-
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  },
-
-  showLoading(show) {
-    document.getElementById('loading').style.display = show ? 'flex' : 'none';
-  },
-
-  showError(message) {
-    const box = document.getElementById('error');
-    box.textContent = message;
-    box.style.display = 'block';
-  },
-
-  clearError() {
-    document.getElementById('error').style.display = 'none';
-  }
+const state = {
+    currentPath: './',
+    files: [],
+    error: null,
+    loading: false,
+    dragover: false,
+    uploads: [],
+    viewer: null,
+    viewerBody: null,
+    confirm: null,
+    prompt: null,
+    promptValue: ''
 };
 
-window.addEventListener('DOMContentLoaded', () => app.init());
+const root = document.getElementById('app');
+const api = (p) => basePath + p;
+
+async function loadFiles(p = './') {
+    state.currentPath = p;
+    state.loading = true;
+    state.error = null;
+    render();
+    try {
+        const r = await fetch(api(`/api/list/${encodeURIComponent(p)}`));
+        if (!r.ok) throw new Error('list ' + r.status);
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error);
+        state.files = (j.value.children || []).map(f => ({
+            ...f,
+            modified: f.time?.modified ? new Date(f.time.modified).toLocaleDateString() : ''
+        }));
+    } catch (e) {
+        state.error = 'load: ' + e.message;
+    } finally {
+        state.loading = false;
+        render();
+    }
+}
+
+function pathSegments() {
+    if (state.currentPath === './' || state.currentPath === '.' || state.currentPath === '') return [];
+    return state.currentPath.replace(/^\.\//, '').split('/').filter(Boolean);
+}
+
+function pathFromSegments(n) {
+    const segs = pathSegments().slice(0, n);
+    return segs.length ? './' + segs.join('/') : './';
+}
+
+function joinPath(p, name) {
+    if (p === './' || p === '.' || p === '') return './' + name;
+    return p + '/' + name;
+}
+
+async function openFile(file) {
+    if (file.type === 'dir') return loadFiles(file.path);
+    state.viewer = file;
+    state.viewerBody = h('div', { class: 'ds-preview-fallback' }, h('span', { class: 'ds-preview-glyph' }, '⏳'), h('span', {}, 'loading…'));
+    render();
+    if (file.type === 'image' || file.type === 'video' || file.type === 'audio') {
+        const src = api(`/api/download/${encodeURIComponent(file.path)}`);
+        state.viewerBody = C.FilePreviewMedia({ type: file.type, src, name: file.name });
+        render();
+        return;
+    }
+    try {
+        const r = await fetch(api(`/api/view/${encodeURIComponent(file.path)}`));
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error);
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        const codeExts = ['js','ts','jsx','tsx','py','java','c','cpp','css','html','xml','yaml','yml','sh','bash','go','rs','kotlin','swift','rb','php'];
+        if (file.type === 'code' || codeExts.includes(ext)) {
+            state.viewerBody = C.FilePreviewCode({ content: j.value, lang: ext });
+        } else if (ext === 'json') {
+            let pretty = j.value;
+            try { pretty = JSON.stringify(JSON.parse(j.value), null, 2); } catch {}
+            state.viewerBody = C.FilePreviewCode({ content: pretty, lang: 'json' });
+        } else {
+            const truncated = j.value.length > 10000;
+            const content = truncated ? j.value.slice(0, 10000) : j.value;
+            state.viewerBody = C.FilePreviewText({ content, truncated });
+        }
+    } catch (e) {
+        state.viewerBody = h('div', { class: 'ds-preview-fallback' },
+            h('span', { class: 'ds-preview-glyph' }, '✕'),
+            h('span', {}, 'view: ' + e.message)
+        );
+    }
+    render();
+}
+
+function downloadFile(file) {
+    window.location.href = api(`/api/download/${encodeURIComponent(file.path)}`);
+}
+
+function rowAction(act, file) {
+    if (act === 'download') return downloadFile(file);
+    if (act === 'delete') {
+        state.confirm = {
+            title: 'delete ' + file.name + '?',
+            message: file.type === 'dir' ? 'this will recursively delete the directory.' : 'this cannot be undone.',
+            destructive: true,
+            onConfirm: async () => {
+                state.confirm = null;
+                try {
+                    const r = await fetch(api(`/api/file/${encodeURIComponent(file.path)}`), { method: 'DELETE' });
+                    if (!r.ok) {
+                        const j = await r.json().catch(() => ({}));
+                        throw new Error(j.error || 'delete ' + r.status);
+                    }
+                    await loadFiles(state.currentPath);
+                } catch (e) {
+                    state.error = 'delete: ' + e.message;
+                    render();
+                }
+            },
+            onCancel: () => { state.confirm = null; render(); }
+        };
+        render();
+        return;
+    }
+    if (act === 'rename') {
+        state.prompt = {
+            title: 'rename ' + file.name,
+            value: file.name,
+            confirmLabel: 'rename',
+            onConfirm: async (v) => {
+                const newName = (v || '').trim();
+                state.prompt = null; state.promptValue = '';
+                if (!newName) { render(); return; }
+                try {
+                    const fd = new FormData();
+                    fd.append('path', file.path);
+                    fd.append('name', newName);
+                    const r = await fetch(api('/api/rename'), { method: 'POST', body: fd });
+                    const j = await r.json();
+                    if (!j.ok) throw new Error(j.error);
+                    await loadFiles(state.currentPath);
+                } catch (e) {
+                    state.error = 'rename: ' + e.message;
+                    render();
+                }
+            },
+            onCancel: () => { state.prompt = null; state.promptValue = ''; render(); }
+        };
+        state.promptValue = file.name;
+        render();
+    }
+}
+
+function newFolder() {
+    state.prompt = {
+        title: 'new folder',
+        value: '',
+        confirmLabel: 'create',
+        onConfirm: async (v) => {
+            const name = (v || '').trim();
+            state.prompt = null; state.promptValue = '';
+            if (!name) { render(); return; }
+            try {
+                const fd = new FormData();
+                fd.append('path', joinPath(state.currentPath, name));
+                const r = await fetch(api('/api/mkdir'), { method: 'POST', body: fd });
+                const j = await r.json();
+                if (!j.ok) throw new Error(j.error);
+                await loadFiles(state.currentPath);
+            } catch (e) {
+                state.error = 'mkdir: ' + e.message;
+                render();
+            }
+        },
+        onCancel: () => { state.prompt = null; state.promptValue = ''; render(); }
+    };
+    state.promptValue = '';
+    render();
+}
+
+async function uploadFiles(fileList) {
+    if (!fileList || !fileList.length) return;
+    const items = Array.from(fileList).map(f => ({ name: f.name, pct: 0, done: false }));
+    state.uploads = items;
+    render();
+    const fd = new FormData();
+    for (const f of fileList) fd.append('files', f);
+    try {
+        const r = await fetch(api(`/api/upload?path=${encodeURIComponent(state.currentPath)}`), { method: 'POST', body: fd });
+        if (!r.ok) throw new Error('upload ' + r.status);
+        items.forEach(it => { it.pct = 100; it.done = true; });
+        render();
+        await loadFiles(state.currentPath);
+        setTimeout(() => { state.uploads = []; render(); }, 1200);
+    } catch (e) {
+        items.forEach(it => { it.error = true; });
+        state.error = 'upload: ' + e.message;
+        render();
+    }
+}
+
+function pickFiles() {
+    const input = document.createElement('input');
+    input.type = 'file'; input.multiple = true;
+    input.onchange = () => uploadFiles(input.files);
+    input.click();
+}
+
+function App() {
+    const segs = pathSegments();
+    const main = h('div', { style: 'padding: 18px 24px' },
+        state.error ? h('div', { class: 'ds-error', style: 'background:var(--flame);color:var(--ink);padding:10px 14px;border-radius:10px;margin-bottom:14px;cursor:pointer', onclick: () => { state.error = null; render(); } }, state.error + ' (click to dismiss)') : null,
+        C.BreadcrumbPath({
+            segments: segs,
+            root: appName,
+            onNav: (i) => loadFiles(pathFromSegments(i))
+        }),
+        C.FileToolbar({
+            left: [
+                C.Btn({ onClick: pickFiles, children: '⇪ upload' }),
+                C.Btn({ onClick: newFolder, children: '+ folder' }),
+                C.Btn({ onClick: () => loadFiles(state.currentPath), children: '↻ refresh' })
+            ],
+            right: [
+                h('span', { class: 'meta', style: 'color:var(--panel-text-3);font-family:var(--ff-mono);font-size:12px' },
+                    state.loading ? 'loading…' : String(state.files.length).padStart(2, '0') + ' items'
+                )
+            ]
+        }),
+        C.DropZone({
+            label: state.dragover ? 'release to upload' : 'drop files here to upload',
+            dragover: state.dragover,
+            onDragOver: () => { if (!state.dragover) { state.dragover = true; render(); } },
+            onDragLeave: () => { state.dragover = false; render(); },
+            onDrop: (files) => { state.dragover = false; uploadFiles(files); },
+            onPick: pickFiles
+        }),
+        C.UploadProgress({ items: state.uploads }),
+        C.FileGrid({
+            files: state.files,
+            onOpen: openFile,
+            onAction: rowAction,
+            emptyText: state.loading ? 'loading…' : 'empty directory — drop files or create a folder.'
+        })
+    );
+
+    return h('div', {},
+        C.AppShell({
+            topbar: C.Topbar({
+                brand: appName,
+                leaf: 'files',
+                items: []
+            }),
+            crumb: C.Crumb({ trail: [appName], leaf: state.currentPath === './' ? 'root' : segs[segs.length - 1] || 'root' }),
+            main,
+            status: C.Status({
+                left: ['main', '• ' + state.files.length + ' items'],
+                right: [state.loading ? 'loading' : 'live']
+            })
+        }),
+        state.viewer ? C.FileViewer({
+            file: state.viewer,
+            body: state.viewerBody,
+            onClose: () => { state.viewer = null; state.viewerBody = null; render(); },
+            onAction: (act) => { if (act === 'download') downloadFile(state.viewer); }
+        }) : null,
+        state.confirm ? C.ConfirmDialog(state.confirm) : null,
+        state.prompt ? C.PromptDialog({
+            ...state.prompt,
+            value: state.promptValue,
+            onInput: (v) => { state.promptValue = v; }
+        }) : null
+    );
+}
+
+function render() { applyDiff(root, [App()]); }
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (state.viewer) { state.viewer = null; state.viewerBody = null; render(); return; }
+    if (state.prompt) { state.prompt.onCancel && state.prompt.onCancel(); return; }
+    if (state.confirm) { state.confirm.onCancel && state.confirm.onCancel(); }
+});
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+    document.addEventListener(evt, e => e.preventDefault());
+});
+
+loadFiles('./');

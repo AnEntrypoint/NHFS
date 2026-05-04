@@ -23,14 +23,17 @@
 - Server-side HTML injection uses `escapeJsString()` and `escapeHtml()` for all dynamic values (name, themeKeys, basePath)
 - Permission checks via fs.access() with granular read/write flags
 
-### Frontend (Vanilla JavaScript)
-- Single index.html with no build step
-- app.js handles all UI logic without React/Framework dependencies
-- Fetch API for backend communication
-- Drag-drop upload with progress tracking
-- Preview support: inline images, HTML5 audio/video players
-- Breadcrumb navigation with history
-- Dark mode via CSS prefers-color-scheme media query and data-theme attribute
+### Frontend (247420 design system + webjsx)
+- public/index.html is a minimal shell — sets `class="ds-247420"` on `<html>` for the SDK CSS scope, declares an importmap pointing `anentrypoint-design` at the runtime SDK URL
+- public/app.js is a buildless ES module: `import { h, applyDiff, components as C } from 'anentrypoint-design'` and renders FileGrid/DropZone/FileViewer/FileToolbar/BreadcrumbPath/ConfirmDialog/PromptDialog from the SDK; no React, no compile step
+- index.js mounts `../anentrypoint-design/dist` (sibling repo) at `/_ds/` when present; falls back to `https://unpkg.com/anentrypoint-design@latest/dist` otherwise. Logged at boot: `[fsbrowse] design system: local <path>` or `[fsbrowse] design system: unpkg fallback`. The `__DS_BASE__` placeholder in index.html is rewritten to the chosen prefix; the importmap entry resolves accordingly
+- HTML rewrite (index.js line 96-110) does five string substitutions: `<!--INJECT-->` → window-globals script, `__DS_BASE__` → SDK base URL, `__BASEPATH__` → router mount path, the title, and the SDK-asset hrefs are all keyed off these placeholders. `<title>fsbrowse</title>` literal is replaced with the configured `name`
+- File-browser UI logic lives in public/app.js: `loadFiles → render` cycle drives a single `applyDiff(root, [App()])` call per state change; `state` object holds currentPath / files / viewer / confirm / prompt / uploads
+- Preview routing in `openFile`: image/video/audio → `FilePreviewMedia`; code or known code-extensions → `FilePreviewCode`; json → pretty-printed `FilePreviewCode lang=json`; text/other → `FilePreviewText` with truncation at 10kB
+- Drag-drop upload + dragover state via SDK `DropZone` component; document-level `preventDefault` registered for dragenter/dragover/dragleave/drop to stop the browser navigating to dropped files
+- Theme sync: tiny inline script in index.html `<head>` sets `data-theme` on `<html>` from configurable localStorage keys; storage events propagate
+- Keyboard: ESC closes viewer, then prompt, then confirm in priority order
+- The `__BASEPATH__/app.js` placeholder in index.html means app.js loads correctly when fsbrowse is mounted at any path
 ### Theme Integration
 
 When embedded in a host app (like agentgui), fsbrowse inherits the host's light/dark theme:

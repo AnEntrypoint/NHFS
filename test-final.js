@@ -3,7 +3,8 @@ const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
 
-const BASE = '/tmp/fsbrowse-final-' + Date.now();
+const os = require('os');
+const BASE = path.join(os.tmpdir(), 'fsbrowse-final-' + Date.now());
 let server, port;
 const u = p => `http://localhost:${port}/files${p}`;
 
@@ -51,7 +52,7 @@ async function testRenameTraversalFix() {
   const r = await (await fetch(u('/api/rename'), { method: 'POST', ...mkmp({ path: 'sub/victim.txt', name: '../../escaped.txt' }) })).json();
   assert('rename-trav: no escape to parent', !fs.existsSync(path.join(BASE, '..', 'escaped.txt')));
   assert('rename-trav: basename used, stays in subdir', fs.existsSync(path.join(BASE, 'sub', 'escaped.txt')));
-  assert('rename-trav: return path correct', r.value === 'sub/escaped.txt');
+  assert('rename-trav: return path correct', r.value === path.join('sub', 'escaped.txt'));
 
   await fsp.writeFile(path.join(BASE, 'dottest.txt'), 'x');
   const dot = await (await fetch(u('/api/rename'), { method: 'POST', ...mkmp({ path: 'dottest.txt', name: '..' }) })).json();

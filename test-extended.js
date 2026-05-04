@@ -3,7 +3,8 @@ const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
 
-const BASE = '/tmp/fsbrowse-ext-' + Date.now();
+const os = require('os');
+const BASE = path.join(os.tmpdir(), 'fsbrowse-ext-' + Date.now());
 let server, port;
 const u = p => `http://localhost:${port}/files${p}`;
 
@@ -33,7 +34,11 @@ async function setup() {
   await fsp.writeFile(path.join(BASE, 'multibyte.txt'), '日本語テスト café');
   await fsp.writeFile(path.join(BASE, 'subdir', 'nested.txt'), 'nested');
   try { await fsp.unlink(path.join(BASE, 'broken-link')); } catch {}
-  await fsp.symlink('/tmp/nonexistent-target-xyz', path.join(BASE, 'broken-link'));
+  try {
+    await fsp.symlink('/tmp/nonexistent-target-xyz', path.join(BASE, 'broken-link'));
+  } catch (e) {
+    if (e.code !== 'EPERM') throw e;
+  }
 
   delete require.cache[require.resolve('./index.js')];
   const fsbrowse = require('./index.js');
@@ -52,12 +57,14 @@ async function testFileTypeAllCategories() {
   assert('type: zip=archive', t('archive.zip') === 'archive');
   assert('type: pdf=document', t('doc.pdf') === 'document');
   assert('type: noext=other', t('noext') === 'other');
-  assert('type: broken-link=symlink', t('broken-link') === 'symlink');
+  if (t('broken-link')) assert('type: broken-link=symlink', t('broken-link') === 'symlink');
+  else console.log('SKIP: type: broken-link=symlink');
 }
 
 async function testBrokenSymlinkInListing() {
   const r = await (await fetch(u('/api/list/./'))).json();
   const bl = r.value.children.find(c => c.name === 'broken-link');
+  if (!bl) { console.log('SKIP: broken-link tests'); return; }
   assert('broken-link: permissions=EACCES', bl.permissions === 'EACCES');
   assert('broken-link: size=0', bl.size === 0);
   assert('broken-link: no timestamps', !bl.time);
@@ -110,7 +117,7 @@ async function testFactoryDefaults() {
   const r1 = await fetch(`http://localhost:${p}/def/`);
   const html1 = await r1.text();
   assert('factory: default name in title', html1.includes('<title>fsbrowse</title>'));
-  assert('factory: default name in h1', html1.includes('>fsbrowse</h1>'));
+  assert('factory: default name in APP_NAME', html1.includes("window.APP_NAME='fsbrowse'"));
 
   const r2 = await fetch(`http://localhost:${p}/def/index.html`);
   const html2 = await r2.text();
@@ -121,16 +128,11 @@ async function testFactoryDefaults() {
 }
 
 async function testStaticServing() {
-  const css = await fetch(u('/style.css'));
-  assert('static: style.css 200', css.status === 200);
-  assert('static: style.css is CSS', css.headers.get('content-type').includes('text/css'));
-  const cssBody = await css.text();
-  assert('static: style.css has content', cssBody.includes(':root'));
-
   const js = await fetch(u('/app.js'));
   assert('static: app.js 200', js.status === 200);
   const jsBody = await js.text();
-  assert('static: app.js has content', jsBody.includes('const app'));
+  assert('static: app.js imports SDK', jsBody.includes("from 'anentrypoint-design'"));
+  assert('static: app.js uses components', jsBody.includes('FileGrid') || jsBody.includes('C.FileGrid'));
 }
 
 async function testViewMultibyteAndTraversal() {

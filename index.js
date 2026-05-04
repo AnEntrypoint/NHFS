@@ -62,6 +62,21 @@ function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+const DS_UNPKG = 'https://unpkg.com/anentrypoint-design@latest/dist';
+
+function resolveDesignDist() {
+  const candidates = [
+    path.join(__dirname, '..', 'anentrypoint-design', 'dist'),
+    path.join(__dirname, 'node_modules', 'anentrypoint-design', 'dist'),
+  ];
+  for (const c of candidates) {
+    if (fsSync.existsSync(path.join(c, '247420.js')) && fsSync.existsSync(path.join(c, '247420.css'))) {
+      return c;
+    }
+  }
+  return null;
+}
+
 module.exports = function fsbrowse(opts) {
   const baseDir = (opts && opts.baseDir) || process.env.BASE_DIR || '/files';
   const name = (opts && opts.name) || 'fsbrowse';
@@ -70,20 +85,24 @@ module.exports = function fsbrowse(opts) {
   const router = express.Router();
   const publicDir = path.join(__dirname, 'public');
 
+  const dsLocal = resolveDesignDist();
+  if (dsLocal) {
+    router.use('/_ds', express.static(dsLocal));
+    console.log('[fsbrowse] design system: local', dsLocal);
+  } else {
+    console.log('[fsbrowse] design system: unpkg fallback');
+  }
+
   router.use((req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
       const basePath = req.baseUrl;
+      const dsBase = dsLocal ? `${basePath}/_ds` : DS_UNPKG;
       let html = fsSync.readFileSync(path.join(publicDir, 'index.html'), 'utf-8');
-      html = html.replace(
-        '<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js',
-        `<script>window.THEME_KEYS='${escapeJsString(themeKeys)}';window.BASEPATH='${escapeJsString(basePath)}';</script><script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js`
-      );
-      html = html.replace(/href="\/style\.css"/g, `href="${escapeHtml(basePath)}/style.css"`);
-      html = html.replace(/src="\/app\.js"/g, `src="${escapeHtml(basePath)}/app.js"`);
-      if (name !== 'fsbrowse') {
-        html = html.replace(/<title>fsbrowse<\/title>/, `<title>${escapeHtml(name)}</title>`);
-        html = html.replace(/>fsbrowse<\/h1>/, `>${escapeHtml(name)}</h1>`);
-      }
+      const inject = `<script>window.THEME_KEYS='${escapeJsString(themeKeys)}';window.BASEPATH='${escapeJsString(basePath)}';window.DS_BASE='${escapeJsString(dsBase)}';window.APP_NAME='${escapeJsString(name)}';</script>`;
+      html = html.replace('<!--INJECT-->', inject);
+      html = html.replace(/__DS_BASE__/g, escapeHtml(dsBase));
+      html = html.replace(/__BASEPATH__/g, escapeHtml(basePath));
+      html = html.replace(/<title>fsbrowse<\/title>/, `<title>${escapeHtml(name)}</title>`);
       res.type('text/html').send(html);
     } else {
       next();

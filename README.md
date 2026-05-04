@@ -55,10 +55,11 @@ BASEPATH=           # URL subpath prefix (default: empty, e.g., /files for http:
 - Busboy for streaming multipart uploads
 - Path injection prevention
 
-**Frontend: Vanilla JavaScript (784 LOC)**
-- `public/index.html` — Pure HTML (no JSX)
-- `public/app.js` — DOM manipulation + fetch API
-- `public/style.css` — Responsive CSS
+**Frontend: 247420 design system + webjsx**
+- `public/index.html` — minimal shell with importmap pointing at the design SDK
+- `public/app.js` — buildless ES module that imports `anentrypoint-design` and renders FileGrid / DropZone / FileViewer / ConfirmDialog / PromptDialog from the SDK
+- No bundler. The SDK ships from `../anentrypoint-design/dist` (sibling repo) when present, otherwise from `unpkg.com/anentrypoint-design@latest`.
+- Visual language: tonal surfaces, indicator rails by file type (rail color comes from `data-file-type`), zero borders, zero drop shadows. See [the design system](https://github.com/AnEntrypoint/design) for the full SKILL.md.
 
 **Dependencies: 2 only**
 - `express` — HTTP server
@@ -101,7 +102,17 @@ Result: **99.4% smaller node_modules, 0 build time**
 npm start   # Run server
 ```
 
-Edit `server.js`, `public/app.js`, or `public/style.css` and refresh browser. No build step.
+Edit `server.js` or `public/app.js` and refresh browser. No build step.
+
+To work on the visual language alongside fsbrowse, clone [`anentrypoint-design`](https://github.com/AnEntrypoint/design) as a sibling directory:
+
+```
+C:/dev/
+  fsbrowse/
+  anentrypoint-design/   # built dist/ here is auto-served at /_ds/
+```
+
+Run `node scripts/build.mjs` in the design repo to rebuild; refresh fsbrowse to pick up the changes. If the sibling is absent, fsbrowse falls back to the unpkg-published SDK.
 
 ---
 

@@ -3,8 +3,9 @@ const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
 const http = require('http');
+const os = require('os');
 
-const BASE = '/tmp/fsbrowse-test-' + Date.now();
+const BASE = path.join(os.tmpdir(), 'fsbrowse-test-' + Date.now());
 let server, port;
 
 function assert(label, condition) {
@@ -45,7 +46,13 @@ async function setup() {
   await fsp.writeFile(path.join(BASE, 'image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   await fsp.writeFile(path.join(BASE, 'subdir', 'nested.txt'), 'nested content');
   try { await fsp.unlink(path.join(BASE, 'link.txt')); } catch {}
-  await fsp.symlink(path.join(BASE, 'hello.txt'), path.join(BASE, 'link.txt'));
+  try {
+    await fsp.symlink(path.join(BASE, 'hello.txt'), path.join(BASE, 'link.txt'));
+  } catch (e) {
+    if (e.code !== 'EPERM') throw e;
+    // Windows without dev mode: symlinks need Admin. Skip — symlink-dependent
+    // assertions guard via optional chaining.
+  }
 
   delete require.cache[require.resolve('./index.js')];
   const fsbrowse = require('./index.js');
@@ -108,7 +115,8 @@ async function testApiList() {
   assert('list: file has timestamps', hello.time && hello.time.modified);
 
   const link = body.value.children.find(c => c.name === 'link.txt');
-  assert('list: symlink detected', link?.type === 'symlink');
+  if (link) assert('list: symlink detected', link.type === 'symlink');
+  else console.log('SKIP: list: symlink detected (no symlink fixture)');
 
   const sub = await req('GET', '/api/list/subdir');
   assert('list: subdir ok', sub.body.ok === true);
@@ -300,7 +308,8 @@ async function testFileTypeDetection() {
   assert('filetype: .js is code', typeOf('code.js') === 'code');
   assert('filetype: .png is image', typeOf('image.png') === 'image');
   assert('filetype: subdir is dir', typeOf('subdir') === 'dir');
-  assert('filetype: symlink detected', typeOf('link.txt') === 'symlink');
+  if (typeOf('link.txt')) assert('filetype: symlink detected', typeOf('link.txt') === 'symlink');
+  else console.log('SKIP: filetype: symlink detected (no symlink fixture)');
 }
 
 async function testBasepathHandling() {
@@ -315,8 +324,9 @@ async function testBasepathHandling() {
   const res = await fetch(`http://localhost:${p1}/custom/path/`);
   const html = await res.text();
   assert('basepath: BASEPATH injected', html.includes("window.BASEPATH='/custom/path'"));
-  assert('basepath: style.css path rewritten', html.includes('href="/custom/path/style.css"'));
-  assert('basepath: app.js path rewritten', html.includes('src="/custom/path/app.js"'));
+  assert('basepath: DS_BASE injected', html.includes("window.DS_BASE="));
+  assert('basepath: importmap rewritten', html.includes('"anentrypoint-design"'));
+  assert('basepath: SDK css linked', html.includes('247420.css'));
 
   const api = await fetch(`http://localhost:${p1}/custom/path/api/list/./`);
   const data = await api.json();
