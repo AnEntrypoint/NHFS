@@ -144,8 +144,8 @@
   status: completed
 - id: ux-commit-push
   title: Commit + push fsbrowse UX changes (app.js + any index.html). Update test suite if behavior changed (frontend util tests). Porcelain-clean witness before push.
-  witness: gm push-on-clean rule; app.js is the primary edit surface
-  status: pending
+  witness: 'anentrypoint-design: commit 2996853 pushed 042ae46..2996853 main->main (CSS UX affordances; unrelated concurrent src/kits/os changes left to their own chain). fsbrowse: commit 99ad246 pushed 7f25dca..99ad246 main->main (app.js UX rewrite + prd.yml). Tests pass (181). Porcelain empty before each push.'
+  status: completed
 - id: ux-move-files
   title: 'The server exposes POST /api/move (index.js:370) but the frontend has no UI to move files — a real capability gap. Ideal: drag a file row onto a directory row (or onto the breadcrumb parent) to move it there, with the existing move endpoint. Minimum viable: drag-onto-folder with a drop highlight; calls /api/move and reloads.'
   witness: 'browser-45: dragstart movethis.txt + drop on docs row -> /api/move (source/destination fields) -> afterRootHasMovethis:false, docsContents:[''movethis.txt''], movedIntoDocs:true. Confirmed on disk: /tmp/fsb-ux/docs/movethis.txt. app.js FileList augments dir rows with ondragover/drop + .ds-drop-target highlight.'
