@@ -220,5 +220,5 @@
   status: completed
 - id: ux2-commit-push
   title: Commit + push both repos for round-2 UX (app.js + app-shell.css/dist). Run tests. Porcelain-clean before each push. Leave concurrent other-chain src/kits/os changes untouched.
-  witness: gm push-on-clean; two repos
-  status: pending
+  witness: 'anentrypoint-design: commit 8a72a7d pushed b108f0e..8a72a7d main->main (touch checkbox media rule + shortcuts CSS; dist rebuilt clean without other-chain webjsx edit which was left external). fsbrowse: commit 709369e pushed 7c0a94e..709369e main->main (app.js select-all/shortcuts/viewer-autoclose). Tests pass (181). Porcelain clean of my files before each push.'
+  status: completed
