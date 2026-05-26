@@ -91,4 +91,6 @@ package-lock.json
 .gm/rslearn-counter.json
 .gm/turn-state.json
 .gm/turn-state.json.corrupted-*
+.gm/residual-check-fired
+.gm/gm-fired-this-turn
 .codeinsight
