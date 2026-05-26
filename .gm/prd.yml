@@ -72,8 +72,8 @@
   status: completed
 - id: commit-push-both
   title: 'Commit + push both repos: anentrypoint-design (CSS + rebuilt dist) and fsbrowse (any index.html/CLAUDE.md theme fixes). Porcelain-clean witness before each push.'
-  witness: two sibling git repos; gm push-on-clean rule
-  status: pending
+  witness: 'anentrypoint-design: commit af6ccaf (rebased->3fd05dc) pushed 2f6493f..3fd05dc main->main. fsbrowse: commit 0dbd90d pushed cbdec3d..0dbd90d main->main. Both ''git status -sb'' show ''## main...origin/main'' (ahead==0). Porcelain empty before each push.'
+  status: completed
 - id: css-btn-toolbar-consistency
   title: Verify .btn / Btn used in toolbar+dropzone+modals already has kit styling and the new file-browser CSS does not visually clash (sizing, radius). If Btn unstyled in this context add scoping.
   witness: browser-6 rendered toolbar with C.Btn upload/folder/refresh and modal opened with kit .btn/.btn-primary; no layout clash observed (toolbar flex aligned, modal actions right-aligned). .btn-primary.danger variant added for destructive confirm. Btn already styled by kit shell.css under scope.
