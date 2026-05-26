@@ -39,10 +39,10 @@
 When embedded in a host app (like agentgui), fsbrowse inherits the host's light/dark theme:
 
 - **localStorage detection**: On load, checks configurable localStorage keys for 'dark' or 'light' values
-- **data-theme attribute**: Sets `[data-theme="dark"]` on `<html>` which CSS selectors match
+- **data-theme attribute**: Sets `[data-theme="dark"]` or `[data-theme="light"]` on `<html>`. The 247420 kit ships dark tokens under `[data-theme="ink"]`, `[data-theme="auto"]` **and** `[data-theme="dark"]` (the last added as an alias so fsbrowse's `dark` value resolves to real dark tokens — previously it did not, leaving dark mode unstyled)
 - **Storage event listener**: Reacts to theme changes in real-time across tabs/frames
-- **Fallback**: When no localStorage theme is found, falls back to `prefers-color-scheme` media query
-- **Override protection**: When `data-theme="light"` is set, the dark media query is blocked via `:root:not([data-theme="light"])`
+- **Fallback**: When no localStorage theme is found, the kit's `[data-theme="auto"]` + `prefers-color-scheme: dark` media query supplies dark tokens
+- **Light is the default**: with no `data-theme` (or `light`), the kit's `:root` light tokens apply
 
 **Factory option**: `fsbrowse({ themeKeys: 'my-app-theme,theme' })` configures which localStorage keys to check. Default: `'gmgui-theme,theme'`.
 - Responsive design: mobile-optimized layout
@@ -70,9 +70,9 @@ When embedded in a host app (like agentgui), fsbrowse inherits the host's light/
 ### File Viewing Implementation
 - `/api/view/:path` endpoint reads files up to 5MB limit for preview
 - Binary detection via byte heuristic (null bytes, invalid UTF-8 continuation bytes) — Node's `readFile('utf-8')` never throws on invalid UTF-8, so catch-based detection does not work
-- Syntax highlighting via highlight.js CDN (atom-one-dark theme) - not bundled to keep code lean
+- Code preview legibility is CSS-only: `.ds-preview-code` renders mono on a dark (`--ink`) surface with horizontal scroll. No highlight.js / CDN dependency — keeps the buildless, no-CDN philosophy intact (the `language-xx` class on `<code>` is left as a hook for any consumer that wants to layer hljs themselves)
 - File type detection by extension determines rendering strategy:
-  - Code (js/ts/py/go/rs/etc): syntax highlighted via hljs.highlightAll()
+  - Code (js/ts/py/go/rs/etc): mono preview on dark surface via `.ds-preview-code`
   - JSON: formatted with JSON.parse/stringify then escaped for safety
   - Text/MD/Log: plaintext in preformatted code blocks
   - Images/Video/Audio: HTML5 native players (img/video/audio elements)

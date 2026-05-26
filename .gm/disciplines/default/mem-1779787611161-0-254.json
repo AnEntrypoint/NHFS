@@ -1,0 +1,3 @@
+## Resolved mutable: theme-key-resolution
+
+grep -rn data-theme=dark across anentrypoint-design/*.css and src/ returned zero matches (Bash exit 0, empty output). Confirmed dark/light keys in public/index.html:13 vs ink/auto in colors_and_type.css:178,201.

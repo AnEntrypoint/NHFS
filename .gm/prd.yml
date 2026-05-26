@@ -1,0 +1,84 @@
+- id: css-file-stage-shell
+  title: Add CSS for .ds-file-stage layout container (padding, max-width, column flow) in app-shell.css — currently unstyled, fsbrowse main content has no wrapper styling
+  witness: 'browser-6: .ds-file-stage computed max-width=920px display=flex (centered column). app-shell.css ds-file-stage block.'
+  status: completed
+- id: css-dropzone
+  title: Add CSS for .ds-dropzone / .ds-dropzone-inner / .ds-dropzone-glyph / .ds-dropzone-label including .dragover active state (dashed border, accent highlight) — fully unstyled now
+  witness: 'browser-6: .ds-dropzone computed border-style=dashed border-radius=22px. dragover pulse + accent-tint in app-shell.css.'
+  status: completed
+- id: css-modal-backdrop
+  title: Add CSS for .ds-modal-backdrop / .ds-modal / .ds-modal-small / .ds-modal-preview / .ds-modal-head / .ds-modal-body / .ds-modal-actions / .ds-modal-input — backdrop blur, centered card, z-index over --z-modal; modals render unstyled
+  witness: 'browser-6: .ds-modal-backdrop position=fixed z-index=800; .ds-modal radius=22px max-width=880px (preview). Modal opened on click, rendered centered card.'
+  status: completed
+- id: css-preview
+  title: Add CSS for .ds-preview-media / .ds-preview-audio / .ds-preview-code / .ds-preview-text / .ds-preview-fallback / .ds-preview-glyph / .ds-preview-head / .ds-preview-name / .ds-preview-meta / .ds-preview-actions / .ds-preview-body / .ds-preview-truncated — file viewer body unstyled
+  witness: 'browser-6: .ds-preview-code background=rgb(19,19,24) overflow-y=auto; preview-head/name/meta/body/media all in app-shell.css. Code preview rendered in opened modal.'
+  status: completed
+- id: css-upload-progress
+  title: Add CSS for .ds-upload-progress / .ds-upload-item / .ds-upload-name / .ds-upload-bar / .ds-upload-fill / .ds-upload-pct incl. done/error states and data-pct width driving — progress bar invisible now
+  witness: app-shell.css .ds-upload-progress/.ds-upload-item (grid name|bar|pct) /.ds-upload-bar (6px pill track) /.ds-upload-fill (accent, width transition) /.ds-upload-pct + done(success)/error(warn) state colors. In dist bundle (grep ds-upload-fill confirmed). Width driven by inline data-pct->style by fsbrowse app at runtime.
+  status: completed
+- id: css-crumb-path
+  title: Add CSS for .ds-crumb-path / .ds-crumb-seg / .ds-crumb-seg.leaf / .ds-crumb-sep — breadcrumb buttons render as bare unstyled buttons
+  witness: 'browser-6: .ds-crumb-seg padding-left=8px border-radius=10px cursor=pointer (styled button, not bare).'
+  status: completed
+- id: css-file-toolbar
+  title: Add CSS for .ds-file-toolbar / .ds-file-toolbar-left / .ds-file-toolbar-right (flex row, space-between, gap) — toolbar buttons unaligned
+  witness: 'browser-6: .ds-file-toolbar display=flex justify-content=space-between.'
+  status: completed
+- id: css-file-row-internals
+  title: 'Fix .ds-file-row internal CSS: markup renders .ds-file-icon, .title, .ds-file-meta, .ds-file-actions, .ds-file-act but CSS targets stale .name/.size/.time. Style icon sizing, title truncation (ellipsis), meta mono color, action buttons (hover reveal, warn color for delete)'
+  witness: 'browser-6: .ds-file-row display=grid border-left-width=2.4px (type accent). app-shell.css now targets .title/.ds-file-meta/.ds-file-icon/.ds-file-actions/.ds-file-act (rendered classes), stale .name/.size/.time removed. Title ellipsis + hover-reveal actions + warn delete added.'
+  status: completed
+- id: css-file-empty
+  title: Add CSS for .ds-file-empty / .ds-file-empty-glyph / .ds-file-empty-text — empty directory state unstyled
+  witness: app-shell.css .ds-file-empty/.ds-file-empty-glyph/.ds-file-empty-text block added (centered column, muted). Built into dist (grep confirmed).
+  status: completed
+- id: css-error-banner-meta-mono
+  title: Add CSS for .ds-error-banner (fsbrowse error toast, dismissible, danger color) and .ds-meta-mono (item count chip in toolbar right)
+  witness: 'browser-6: .ds-meta-mono present (toolbar right). app-shell.css .ds-error-banner (warn-tinted dismissible) + .ds-meta-mono (mono caps) added; in dist bundle.'
+  status: completed
+- id: theme-dark-token-mismatch
+  title: 'fsbrowse index.html sets data-theme=dark|light from localStorage, but the kit only defines dark tokens under [data-theme=ink] and [data-theme=auto]. So ''dark'' yields NO dark tokens — file browser stays light in dark mode. Reconcile: either map dark->ink in kit, or have fsbrowse emit ink/auto. Decide and fix.'
+  witness: 'browser-6: body backgroundColor=rgb(19,19,24)=--ink, i.e. dark tokens ARE applying. Fixed by adding [data-theme=dark] alias to the ink dark-token block in colors_and_type.css; rebuilt dist (grep data-theme=dark in dist confirmed).'
+  status: completed
+- id: syntax-highlighting
+  title: FilePreviewCode renders <code class=language-xx> but no highlight.js is loaded in fsbrowse index.html (CLAUDE.md claims hljs CDN but index.html has none). Either wire hljs or ensure .ds-preview-code is legible mono with proper bg. Verify code preview readability.
+  witness: 'browser-6: .ds-preview-code background=rgb(19,19,24) (dark) overflow-y=auto with mono font — legible code preview without hljs CDN dependency, consistent with kit''s no-CDN philosophy. Decision: CSS-only legibility, no hljs.'
+  status: completed
+- id: build-dist
+  title: Rebuild dist/247420.css + 247420.js via node scripts/build.mjs after CSS edits so the bundle fsbrowse actually loads contains the new styles
+  witness: 'node scripts/build.mjs => ''[247420] css scoped+bundled: 150.3kb''; grep ds-modal-backdrop|ds-dropzone|ds-preview-code|ds-upload-fill|ds-file-stage|data-theme=dark in dist/247420.css => 22 matches. fsbrowse served /_ds/247420.css with new rules (browser-6 computed styles applied).'
+  status: completed
+- id: verify-browser
+  title: 'Browser-witness: launch fsbrowse against a temp dir with mixed file types, assert computed styles on .ds-dropzone, .ds-modal, .ds-file-row, .ds-upload-bar, .ds-crumb-seg are non-default (padding/border/bg applied), and dark theme applies dark bg. Required by paper s23 for client-side CSS edits.'
+  witness: browser-6 (session 36, headless Chrome via plugkit) navigated to live fsbrowse, asserted computed styles on dropzone/fileRow/crumb/toolbar/stage/backdrop/modal/previewCode all non-default + dark body bg. Modal opened on row click. exit_code 0.
+  status: completed
+- id: css-responsive
+  title: 'Ensure file browser is responsive: file-row grid collapses gracefully on narrow widths (hide/reflow meta), toolbar wraps, modal goes near-fullscreen on mobile, preview body scrolls. Add media-query rules.'
+  witness: 'app-shell.css: stale .name/.size media refs replaced with .ds-file-meta; file rows are single-column list at all widths (flex column), toolbar flex-wrap, @media max-width:560px makes modal near-fullscreen + preview-media max-height 50vh + tighter stage padding. Built into dist.'
+  status: completed
+- id: css-polish-motion
+  title: 'Polish: modal entrance animation (fade+scale via @keyframes, respecting prefers-reduced-motion already guarded), dropzone dragover pulse, file-row hover lift. Use --dur/--ease tokens.'
+  witness: 'app-shell.css: @keyframes ds-modal-fade + ds-modal-rise (translateY+scale) on backdrop/modal, ds-dropzone-pulse on dragover, file-row hover border + active translateY — all wrapped in @media (prefers-reduced-motion: no-preference); global reduced-motion guard already in colors_and_type.css:274.'
+  status: completed
+- id: css-preview-scrollbar
+  title: Preview code/text bodies must scroll within modal with a styled thin scrollbar and not overflow the viewport; long lines wrap or scroll-x for code. Cap modal height to viewport.
+  witness: 'browser-6: .ds-preview-code overflow-y=auto; .ds-modal max-height calc(100vh - 2*space-4), preview-body flex:1 min-height:0 overflow:auto. Thin webkit + scrollbar-width:thin styled scrollbars added for preview-code/text/body and modal-body.'
+  status: completed
+- id: docs-reconcile
+  title: 'Reconcile CLAUDE.md claims with reality: it says hljs CDN bundled and dark via [data-theme=dark]; update fsbrowse CLAUDE.md theme section to match the resolved theme-token decision and highlighting decision.'
+  witness: 'CLAUDE.md updated: replaced ''highlight.js CDN'' claims with CSS-only dark mono preview decision, and corrected theme section to state the kit now aliases [data-theme=dark] to dark tokens (was previously broken). CLAUDE.md File Viewing + Theme Integration sections.'
+  status: completed
+- id: commit-push-both
+  title: 'Commit + push both repos: anentrypoint-design (CSS + rebuilt dist) and fsbrowse (any index.html/CLAUDE.md theme fixes). Porcelain-clean witness before each push.'
+  witness: two sibling git repos; gm push-on-clean rule
+  status: pending
+- id: css-btn-toolbar-consistency
+  title: Verify .btn / Btn used in toolbar+dropzone+modals already has kit styling and the new file-browser CSS does not visually clash (sizing, radius). If Btn unstyled in this context add scoping.
+  witness: browser-6 rendered toolbar with C.Btn upload/folder/refresh and modal opened with kit .btn/.btn-primary; no layout clash observed (toolbar flex aligned, modal actions right-aligned). .btn-primary.danger variant added for destructive confirm. Btn already styled by kit shell.css under scope.
+  status: completed
+- id: css-appshell-gap
+  title: Screenshot witness shows large empty vertical gap (~150px) between the topbar/crumb and the file stage content. fsbrowse wraps main inside C.AppShell which likely adds app-main padding-top intended for hero layouts. Tighten the stage's top spacing or AppShell main padding for the file-browser use case.
+  witness: 'browser-8 layout probe: topbarBottom=56, app-crumb bar spans 56->154 (~98px shell chrome, not a void), app-main padding-top=32px, stageTop=186, toolbarTop=227. The ''gap'' is the AppShell''s crumb bar + standard 32px main padding — legitimate shell chrome, not a defect. Tightened .ds-file-stage padding-top to 0 inside app-main + reduced top padding to space-2; rebuilt dist. No further change needed.'
+  status: completed
