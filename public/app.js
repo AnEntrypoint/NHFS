@@ -24,7 +24,8 @@ const state = {
     selected: -1,      // index into the filtered list for keyboard nav
     dropTarget: null,  // path of the dir currently a drag-move drop target
     marked: new Set(), // multi-select: set of selected file paths
-    anchor: -1         // shift-range anchor index (into visibleFiles order)
+    anchor: -1,        // shift-range anchor index (into visibleFiles order)
+    showHelp: false    // keyboard-shortcuts hint visibility
 };
 
 const root = document.getElementById('app');
@@ -93,6 +94,13 @@ async function loadFiles(p = './', push = true) {
         state.error = 'load: ' + e.message;
     } finally {
         state.loading = false;
+        // If the file open in the viewer no longer exists after this reload
+        // (deleted/moved/renamed elsewhere), close the viewer rather than show
+        // a stale preview.
+        if (state.viewer && !state.files.some(f => f.path === state.viewer.path)) {
+            state.viewer = null;
+            state.viewerBody = null;
+        }
         render();
     }
 }
@@ -358,6 +366,15 @@ function guard(fn) {
 // ── multi-select ────────────────────────────────────────────
 function clearSelection() { state.marked = new Set(); state.anchor = -1; }
 
+function allSelected(files) {
+    return files.length > 0 && files.every(f => state.marked.has(f.path));
+}
+function toggleSelectAll(files) {
+    if (allSelected(files)) clearSelection();
+    else state.marked = new Set(files.map(f => f.path));
+    render();
+}
+
 function toggleMark(path) {
     if (state.marked.has(path)) state.marked.delete(path);
     else state.marked.add(path);
@@ -466,15 +483,18 @@ function App() {
                 C.Btn({ onClick: guard(newFolder), children: '+ folder' }),
                 C.Btn({ onClick: guard(() => loadFiles(state.currentPath, false)), children: '↻ refresh' }),
                 segs.length ? C.Btn({ onClick: guard(() => loadFiles(parentPath())), children: '↑ up' }) : null,
-                C.Btn({ onClick: guard(() => cycleSort(state.sortKey === 'name' ? 'modified' : state.sortKey === 'modified' ? 'size' : 'name')), children: '⇅ ' + sortLabel() })
+                C.Btn({ onClick: guard(() => cycleSort(state.sortKey === 'name' ? 'modified' : state.sortKey === 'modified' ? 'size' : 'name')), children: '⇅ ' + sortLabel() }),
+                files.length ? C.Btn({ onClick: guard(() => toggleSelectAll(files)), children: allSelected(files) ? '☐ none' : '☑ all' }) : null
             ].filter(Boolean),
             right: [
                 filterInput,
                 h('span', { class: 'meta ds-meta-mono' },
                     state.loading ? 'loading…' : String(files.length).padStart(2, '0') + ' items'
-                )
+                ),
+                C.Btn({ onClick: guard(() => { state.showHelp = !state.showHelp; render(); }), children: '?', 'aria-label': 'keyboard shortcuts' })
             ]
         }),
+        state.showHelp ? ShortcutsHint() : null,
         state.marked.size ? BulkBar() : null,
         C.DropZone({
             label: state.dragover ? 'release to upload' : 'drop files here to upload',
@@ -510,6 +530,27 @@ function App() {
             value: state.promptValue,
             onInput: (v) => { state.promptValue = v; }
         }) : null
+    );
+}
+
+function ShortcutsHint() {
+    const rows = [
+        ['↑ / ↓', 'move selection'],
+        ['Enter', 'open file / folder'],
+        ['Backspace', 'up a directory'],
+        ['Space', 'toggle select row'],
+        ['Ctrl/⌘ + click', 'add to selection'],
+        ['Shift + click', 'select range'],
+        ['Ctrl/⌘ + A', 'select all'],
+        ['Delete', 'delete selection'],
+        ['← / →', 'prev / next in viewer'],
+        ['Esc', 'close dialog']
+    ];
+    return h('div', { class: 'ds-shortcuts-hint', role: 'region', 'aria-label': 'keyboard shortcuts' },
+        ...rows.map(([k, d]) => h('div', { class: 'ds-shortcut-row' },
+            h('kbd', { class: 'ds-kbd' }, k),
+            h('span', {}, d)
+        ))
     );
 }
 

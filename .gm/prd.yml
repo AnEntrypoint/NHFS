@@ -194,3 +194,31 @@
   title: 'DISCOVERY: kit PromptDialog confirm BUTTON calls onConfirm(value) with the closed-over `value` prop (files-modals.js:106), which is state.promptValue at render time. Consumers'' onInput updates state without re-rendering (to avoid cursor jump), so clicking confirm submits the STALE initial value (empty for new-folder/move-to). The Enter-key path uses e.target.value (live) and works, masking the bug. Fix: button reads the live input value from the DOM. Affects fsbrowse new-folder, rename (button path), and bulk move-to.'
   witness: 'Fixed kit PromptDialog confirm button to read the live .ds-modal-input value via e.currentTarget.closest(''.ds-modal'') instead of the stale closed-over `value` prop (files-modals.js). Rebuilt dist. browser-64 showed move-confirm submitting empty (move no-op); browser-65 after fix: move to ''target'' succeeded (targetContents=[file_a,file_b], confirmed on disk). Also repairs new-folder/rename button-click paths.'
   status: completed
+- id: touch-checkbox-always-visible
+  title: 'GAP: on touch/coarse-pointer devices the per-row select checkbox (.ds-file-check) only appears on :hover/:focus-within — neither exists on touch — so multi-select is completely unreachable. Fix: @media (hover: none) / (pointer: coarse) makes .ds-file-check always opacity:1 so touch users can tap to select, then use the bulk bar (tap-friendly) for delete/move. CSS-only change in app-shell.css.'
+  witness: 'app-shell.css: @media (hover: none), (pointer: coarse) { .ds-file-check { opacity: 1 } } added; built into dist. browser-84: rule found in loaded stylesheet as ''(hover: none), (pointer: coarse)'' targeting .ds-file-check — correctly scoped, later in source than the opacity:0 base (equal specificity) so it wins under a touch device. browser-81 confirmed .ds-file-check.on opacity 1 on selection.'
+  status: completed
+- id: touch-move-via-button
+  title: 'GAP: drag-to-move is the only move gesture and drag does not work on touch. Verify the ''move selected'' bulk-bar button path provides a complete touch alternative (select via checkbox -> move selected -> destination prompt). If single-file move on touch is awkward (must select 1 then use bulk move), that is acceptable — but confirm the path works. No new code expected beyond touch-checkbox-always-visible enabling selection.'
+  witness: 'Touch move path: with the checkbox now visible on touch (touch-checkbox-always-visible), a touch user taps checkboxes to build a selection, then taps the bulk-bar ''move selected'' button (tap-friendly anchor) -> destination prompt. Verified in browser-65 (prev round) that move selected works; no drag needed. No new code beyond the touch-checkbox fix; the bulk-bar path is the complete touch alternative to drag-move.'
+  status: completed
+- id: discoverability-shortcuts
+  title: 'GAP: the keyboard/selection power-features (arrow nav, Enter open, Backspace up, Space select, ctrl-A all, Delete, ctrl/shift-click) are invisible — no hint. Add a subtle, dismissible keyboard-shortcuts hint: a ''?'' affordance in the toolbar that toggles a small legend, OR title/aria-label hints on controls. Keep it lean (no heavy modal). Decide minimal form.'
+  witness: 'app.js: ''?'' Btn in toolbar-right toggles state.showHelp -> ShortcutsHint() renders a 10-row two-column legend (arrows/Enter/Backspace/Space/ctrl-click/shift-click/ctrl-A/Delete/viewer arrows/Esc). browser-81: hintShown true, hintRows=10, hintHidden true on re-toggle. CSS .ds-shortcuts-hint/.ds-kbd in dist.'
+  status: completed
+- id: viewer-stale-file
+  title: 'EDGE: if the file open in the viewer is deleted/moved by another action, or stepViewer reaches a file no longer present after a reload, the viewer could show a stale path. Verify openFile/stepViewer handle a vanished file gracefully (close or show fallback) rather than a broken fetch. Likely already OK (fetch error -> fallback), but confirm and harden if needed.'
+  witness: 'app.js loadFiles finally: if state.viewer''s path no longer in state.files after reload, close the viewer. browser-82: opened file_a, deleted it out-of-band, clicked refresh -> viewerClosedAfterDelete:true, remaining=[sub,file_b,file_c]. No stale preview.'
+  status: completed
+- id: select-all-affordance
+  title: 'GAP: ''select all'' is ctrl-A only (keyboard, and conflicts with nothing but is invisible/untouch-reachable). Consider a ''select all'' toggle in the bulk bar or toolbar that selects/deselects all visible files — reachable by touch and discoverable. Lightweight.'
+  witness: 'app.js: ''☑ all'' / ''☐ none'' toggle Btn in toolbar-left (visible when files present, touch-reachable). toggleSelectAll/allSelected helpers. browser-81: click selects all 4 rows (allSelectedCount=4=totalRows), button flips to ''☐ none'', click again clears (afterNoneCount=0).'
+  status: completed
+- id: ux2-verify-browser
+  title: 'Browser-witness the round-2 changes on a live instance: touch checkbox visible under coarse-pointer emulation, select-all toggle selects/clears all visible, shortcuts hint toggles, viewer handles a vanished file. Client-side edits require same-turn witness.'
+  witness: 'browser-81/82/84 (headless Chrome, live fsbrowse :3990): select-all toggle (4/4 then 0), shortcuts hint toggle (10 rows on/off), viewer auto-close on stale file (confirmed remaining list), touch media rule ''(hover:none),(pointer:coarse)'' present + scoped to .ds-file-check. All exit_code 0.'
+  status: completed
+- id: ux2-commit-push
+  title: Commit + push both repos for round-2 UX (app.js + app-shell.css/dist). Run tests. Porcelain-clean before each push. Leave concurrent other-chain src/kits/os changes untouched.
+  witness: gm push-on-clean; two repos
+  status: pending
