@@ -188,8 +188,8 @@
   status: completed
 - id: ms-commit-push
   title: Commit + push both repos for multi-select (app.js + app-shell.css/dist). Run test suite. Porcelain-clean before each push. Leave any concurrent other-chain src/kits/os changes untouched.
-  witness: gm push-on-clean; two repos
-  status: pending
+  witness: 'anentrypoint-design: commit 1fcacd3 pushed bcfb053..1fcacd3 main->main (multi-select CSS + PromptDialog fix + dist). fsbrowse: commit b4e4a2b pushed 5829b57..b4e4a2b main->main (app.js multi-select). Tests pass (181). Porcelain empty before each push. No concurrent other-chain files touched this round.'
+  status: completed
 - id: promptdialog-stale-value-bug
   title: 'DISCOVERY: kit PromptDialog confirm BUTTON calls onConfirm(value) with the closed-over `value` prop (files-modals.js:106), which is state.promptValue at render time. Consumers'' onInput updates state without re-rendering (to avoid cursor jump), so clicking confirm submits the STALE initial value (empty for new-folder/move-to). The Enter-key path uses e.target.value (live) and works, masking the bug. Fix: button reads the live input value from the DOM. Affects fsbrowse new-folder, rename (button path), and bulk move-to.'
   witness: 'Fixed kit PromptDialog confirm button to read the live .ds-modal-input value via e.currentTarget.closest(''.ds-modal'') instead of the stale closed-over `value` prop (files-modals.js). Rebuilt dist. browser-64 showed move-confirm submitting empty (move no-op); browser-65 after fix: move to ''target'' succeeded (targetContents=[file_a,file_b], confirmed on disk). Also repairs new-folder/rename button-click paths.'
