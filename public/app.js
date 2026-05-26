@@ -22,7 +22,9 @@ const state = {
     sortKey: 'name',   // 'name' | 'size' | 'modified'
     sortDir: 1,        // 1 asc, -1 desc
     selected: -1,      // index into the filtered list for keyboard nav
-    dropTarget: null   // path of the dir currently a drag-move drop target
+    dropTarget: null,  // path of the dir currently a drag-move drop target
+    marked: new Set(), // multi-select: set of selected file paths
+    anchor: -1         // shift-range anchor index (into visibleFiles order)
 };
 
 const root = document.getElementById('app');
@@ -74,6 +76,7 @@ async function loadFiles(p = './', push = true) {
     state.error = null;
     state.filter = '';
     state.selected = -1;
+    clearSelection();
     render();
     syncTitleAndHistory(push);
     try {
@@ -352,6 +355,82 @@ function guard(fn) {
     return (e) => { if (e && e.preventDefault) e.preventDefault(); fn(); };
 }
 
+// ── multi-select ────────────────────────────────────────────
+function clearSelection() { state.marked = new Set(); state.anchor = -1; }
+
+function toggleMark(path) {
+    if (state.marked.has(path)) state.marked.delete(path);
+    else state.marked.add(path);
+}
+
+// Handle a selection gesture on the row at index i (in visibleFiles order).
+// modifiers: { ctrl, shift }. Returns true if it consumed the click (i.e. it
+// was a selection gesture, not a plain open).
+function handleSelectGesture(i, file, mods) {
+    const files = visibleFiles();
+    if (mods.shift && state.anchor >= 0) {
+        const [a, b] = state.anchor <= i ? [state.anchor, i] : [i, state.anchor];
+        for (let k = a; k <= b; k++) if (files[k]) state.marked.add(files[k].path);
+        render();
+        return true;
+    }
+    if (mods.ctrl) {
+        toggleMark(file.path);
+        state.anchor = i;
+        render();
+        return true;
+    }
+    return false;
+}
+
+async function bulkDelete() {
+    const paths = [...state.marked];
+    if (!paths.length) return;
+    state.confirm = {
+        title: 'delete ' + paths.length + ' item' + (paths.length > 1 ? 's' : '') + '?',
+        message: 'this cannot be undone. directories are deleted recursively.',
+        destructive: true,
+        confirmLabel: 'delete ' + paths.length,
+        onConfirm: async () => {
+            state.confirm = null; render();
+            const failures = [];
+            for (const p of paths) {
+                try {
+                    const r = await fetch(api(`/api/file/${encodeURIComponent(p)}`), { method: 'DELETE' });
+                    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || r.status); }
+                } catch (e) { failures.push(p.split('/').pop() + ': ' + e.message); }
+            }
+            clearSelection();
+            await loadFiles(state.currentPath, false);
+            if (failures.length) setError('delete failed for ' + failures.length + ': ' + failures.join('; '));
+        },
+        onCancel: () => { state.confirm = null; render(); }
+    };
+    render();
+}
+
+async function bulkMoveTo(destDir) {
+    const paths = [...state.marked].filter(p => p !== destDir);
+    if (!paths.length) return;
+    const byPath = new Map(state.files.map(f => [f.path, f]));
+    const failures = [];
+    for (const p of paths) {
+        const f = byPath.get(p);
+        if (!f) continue;
+        try {
+            const fd = new FormData();
+            fd.append('source', f.path);
+            fd.append('destination', destDir);
+            const r = await fetch(api('/api/move'), { method: 'POST', body: fd });
+            const j = await r.json();
+            if (!j.ok) throw new Error(j.error);
+        } catch (e) { failures.push(f.name + ': ' + e.message); }
+    }
+    clearSelection();
+    await loadFiles(state.currentPath, false);
+    if (failures.length) setError('move failed for ' + failures.length + ': ' + failures.join('; '));
+}
+
 // ── render ──────────────────────────────────────────────────
 function App() {
     const segs = pathSegments();
@@ -396,6 +475,7 @@ function App() {
                 )
             ]
         }),
+        state.marked.size ? BulkBar() : null,
         C.DropZone({
             label: state.dragover ? 'release to upload' : 'drop files here to upload',
             dragover: state.dragover,
@@ -433,6 +513,33 @@ function App() {
     );
 }
 
+function BulkBar() {
+    const n = state.marked.size;
+    return h('div', { class: 'ds-bulk-bar', role: 'toolbar', 'aria-label': 'bulk actions' },
+        h('span', { class: 'ds-bulk-count' }, n + ' selected'),
+        C.Btn({ onClick: guard(() => { clearSelection(); render(); }), children: 'clear' }),
+        C.Btn({ onClick: guard(bulkDelete), children: '✕ delete selected', danger: true }),
+        C.Btn({ onClick: guard(() => {
+            // move selected: prompt for a destination directory (relative to current)
+            state.prompt = {
+                title: 'move ' + n + ' item' + (n > 1 ? 's' : '') + ' to…',
+                value: '',
+                placeholder: 'destination folder (e.g. docs)',
+                confirmLabel: 'move',
+                onConfirm: async (v) => {
+                    const dest = (v || '').trim();
+                    state.prompt = null; state.promptValue = '';
+                    if (!dest) { render(); return; }
+                    await bulkMoveTo(joinPath(state.currentPath, dest));
+                },
+                onCancel: () => { state.prompt = null; state.promptValue = ''; render(); }
+            };
+            state.promptValue = '';
+            render();
+        }), children: '⇨ move selected' })
+    );
+}
+
 // FileGrid wrapper that adds drag-to-move and a stable loading state.
 function FileList(files) {
     if (state.loading && !files.length) {
@@ -457,9 +564,38 @@ function FileList(files) {
             const f = files[i];
             if (!rowV || !f) return;
             rowV.props = rowV.props || {};
+
+            // Selection state class + checkbox affordance.
+            if (state.marked.has(f.path)) {
+                rowV.props.class = (rowV.props.class || '') + ' selected';
+                rowV.props['aria-selected'] = 'true';
+            }
+            const box = h('button', {
+                class: 'ds-file-check' + (state.marked.has(f.path) ? ' on' : ''),
+                title: 'select',
+                'aria-label': (state.marked.has(f.path) ? 'deselect ' : 'select ') + f.name,
+                'aria-pressed': state.marked.has(f.path) ? 'true' : 'false',
+                onclick: (e) => { e.stopPropagation(); toggleMark(f.path); state.anchor = i; render(); }
+            }, state.marked.has(f.path) ? '✓' : '');
+            // Prepend the checkbox as the first child of the row.
+            if (Array.isArray(rowV.props.children)) rowV.props.children.unshift(box);
+
+            // Intercept click for ctrl/shift selection; plain click still opens.
+            const origOpen = rowV.props.onclick;
+            rowV.props.onclick = (e) => {
+                if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                    e.preventDefault(); e.stopPropagation();
+                    handleSelectGesture(i, f, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey });
+                    return;
+                }
+                if (origOpen) origOpen(e);
+            };
+
             rowV.props.draggable = true;
             rowV.props.ondragstart = (e) => {
-                e.dataTransfer.setData('text/fsbrowse-path', f.path);
+                // If this row is part of the selection, drag the whole selection.
+                const payload = state.marked.has(f.path) ? [...state.marked].join('\n') : f.path;
+                e.dataTransfer.setData('text/fsbrowse-path', payload);
                 e.dataTransfer.effectAllowed = 'move';
             };
             if (f.type === 'dir') {
@@ -472,10 +608,17 @@ function FileList(files) {
                 rowV.props.ondragleave = () => { if (state.dropTarget === f.path) { state.dropTarget = null; render(); } };
                 rowV.props.ondrop = (e) => {
                     e.preventDefault();
-                    const src = e.dataTransfer.getData('text/fsbrowse-path');
+                    const payload = e.dataTransfer.getData('text/fsbrowse-path');
                     state.dropTarget = null;
-                    const srcFile = state.files.find(x => x.path === src);
-                    if (srcFile) moveFile(srcFile, f.path);
+                    const srcPaths = payload.split('\n').filter(Boolean);
+                    if (srcPaths.length > 1) {
+                        // multi-move: temporarily treat these as the selection
+                        state.marked = new Set(srcPaths);
+                        bulkMoveTo(f.path);
+                    } else {
+                        const srcFile = state.files.find(x => x.path === srcPaths[0]);
+                        if (srcFile) moveFile(srcFile, f.path);
+                    }
                     render();
                 };
                 if (state.dropTarget === f.path) {
@@ -537,6 +680,19 @@ document.addEventListener('keydown', (e) => {
     } else if (e.key === 'Enter' && state.selected >= 0 && files[state.selected]) {
         e.preventDefault();
         openFile(files[state.selected]);
+    } else if (e.key === ' ' && state.selected >= 0 && files[state.selected]) {
+        // Space toggles selection membership of the keyboard-focused row.
+        e.preventDefault();
+        toggleMark(files[state.selected].path);
+        state.anchor = state.selected;
+        render(); focusSelected();
+    } else if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        state.marked = new Set(files.map(f => f.path));
+        render();
+    } else if (e.key === 'Delete' && state.marked.size) {
+        e.preventDefault();
+        bulkDelete();
     } else if (e.key === 'Backspace' && pathSegments().length) {
         e.preventDefault();
         loadFiles(parentPath());

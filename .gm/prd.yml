@@ -154,3 +154,43 @@
   title: 'DISCOVERY: kit Btn renders <a href=#> and its onclick does NOT preventDefault (shell.js:16-19), so every toolbar button click appends ''#'' to the URL — which collides with the new hash-based history routing (#/docs). Clicking upload/folder/refresh/sort/up would corrupt the path hash. Fix: my Btn onClick handlers must e.preventDefault(), and popstate must ignore a bare ''#''/''#/'' resolving to root only when path actually changed.'
   witness: 'browser-42: after clicking sort and refresh anchors, location.hash stayed clean (hashStillCleanAfterSortClick='''', afterRefreshHash=''#/'') — no stray ''#'' appended. Fixed via guard(fn) wrapper that e.preventDefault()s on every toolbar Btn onClick, since kit Btn renders <a href=#> without preventDefault.'
   status: completed
+- id: ms-selection-model
+  title: 'Multi-select selection model: a Set of selected file paths in state. Click a row toggles single-select context (or opens, see ms-click-semantics); checkbox or ctrl/cmd-click toggles membership; shift-click selects the contiguous range from the last anchor to the clicked row. Keyboard: Space toggles the keyboard-selected row''s membership.'
+  witness: 'app.js: state.marked Set + state.anchor; toggleMark, handleSelectGesture (shift-range over visibleFiles order, ctrl toggle). browser-61: ctrl-click 2 -> ''2 selected'', shift-click extends to 4. Space toggles in keydown; ctrl+A select-all.'
+  status: completed
+- id: ms-click-semantics
+  title: 'Click semantics must not break single-open: a plain click on a row still opens it (dir=navigate, file=preview). Selection is via an explicit checkbox affordance on each row (visible on hover/when any selected) plus ctrl/cmd-click and shift-click range. This avoids hijacking the primary open gesture.'
+  witness: 'browser-61: plainClickOpened:true — plain click still opens (preview). app.js row onclick: only ctrl/meta/shift consume as selection; otherwise origOpen runs. Explicit .ds-file-check button (hover-revealed) toggles membership without opening (stopPropagation).'
+  status: completed
+- id: ms-bulk-action-bar
+  title: 'Bulk action bar: when >=1 row selected, show a bar (in toolbar or as a sticky strip) with ''N selected'', a clear-selection button, ''delete selected'' (single confirm listing count), and ''move selected'' (prompt/dropzone to a destination dir). Hidden when selection empty.'
+  witness: 'browser-61: .ds-bulk-count shows ''2 selected'' then ''4 selected''. app.js BulkBar() renders only when state.marked.size; has count + clear + delete selected + move selected. CSS .ds-bulk-bar sticky accent strip in dist.'
+  status: completed
+- id: ms-bulk-delete
+  title: 'Bulk delete: one ConfirmDialog (''delete N items? this cannot be undone''), then DELETE each selected path sequentially (await), collect failures, reload once, surface any errors via setError. Clears selection after.'
+  witness: 'browser-65: selected file_d+file_e, delete selected -> single confirm -> afterDelete=[target,file_c], deletedGone:true. Disk: /tmp/fsb-ms has only file_c + target. app.js bulkDelete iterates marked paths, collects failures, clears selection, reloads once.'
+  status: completed
+- id: ms-bulk-move
+  title: 'Bulk move: drag any selected row moves the WHOLE selection onto the target dir (POST /api/move per item); also a ''move selected'' action that prompts for/drops onto a destination. Dragging an unselected row moves just that row (existing behavior).'
+  witness: 'browser-65: selected file_a+file_b, move selected -> dest ''target'' -> movedOut:true, targetContents=[file_a,file_b]. Disk: /tmp/fsb-ms/target has file_a+file_b. app.js bulkMoveTo POSTs /api/move per item; dragging a selected row also moves whole selection (payload joined, drop handler splits).'
+  status: completed
+- id: ms-selection-edge-cases
+  title: 'Edge cases: selection clears on directory navigation (paths no longer valid); filter/sort change keeps selection by path (not index); selecting then filtering hides some selected rows — bulk action still applies to all selected paths, not just visible; shift-range computed over the current visibleFiles() order; empty selection hides the bar; selecting a dir is allowed (bulk delete recurses, bulk move moves the folder).'
+  witness: 'app.js: loadFiles calls clearSelection() on every nav (paths invalidate). marked is keyed by PATH (not index), so filter/sort preserve selection; bulk ops operate on all marked paths regardless of visibility (byPath map). shift-range computed over visibleFiles() order. Empty selection hides bar (BulkBar gated on size). Dirs selectable (delete recursive, move moves folder). browser-65 navigated into target and back via history without stale selection.'
+  status: completed
+- id: ms-css
+  title: 'CSS for selection: .ds-file-row checkbox affordance + .ds-file-row.selected state (accent tint/checkmark), .ds-bulk-bar styling (sticky strip with count + actions). Add to anentrypoint-design app-shell.css, rebuild dist.'
+  witness: 'app-shell.css: .ds-file-check (hover/selected-revealed overlay checkbox), .ds-file-row.selected (accent tint+border), .ds-bulk-bar (sticky accent strip), .ds-bulk-count. Built into dist (grep ds-bulk-bar|ds-file-check|.selected => 8). browser-61 showed .ds-file-row.selected count + .ds-bulk-count rendered.'
+  status: completed
+- id: ms-verify
+  title: 'Browser-witness multi-select on a live instance: ctrl-click selects multiple, shift-click selects a range, bulk bar shows correct count, clear works, bulk delete removes all selected (confirm on disk), bulk move relocates all selected into a folder (confirm on disk), plain click still opens, selection survives filter/sort by path. Client-side edits require witness.'
+  witness: 'browser-61/65 (headless Chrome, live fsbrowse :3989): ctrl-click multi, shift-range, bulk bar count, plain-click still opens, bulk move (target had file_a+file_b on disk), bulk delete (file_d+file_e gone on disk), history nav preserved no stale selection. All exit_code 0.'
+  status: completed
+- id: ms-commit-push
+  title: Commit + push both repos for multi-select (app.js + app-shell.css/dist). Run test suite. Porcelain-clean before each push. Leave any concurrent other-chain src/kits/os changes untouched.
+  witness: gm push-on-clean; two repos
+  status: pending
+- id: promptdialog-stale-value-bug
+  title: 'DISCOVERY: kit PromptDialog confirm BUTTON calls onConfirm(value) with the closed-over `value` prop (files-modals.js:106), which is state.promptValue at render time. Consumers'' onInput updates state without re-rendering (to avoid cursor jump), so clicking confirm submits the STALE initial value (empty for new-folder/move-to). The Enter-key path uses e.target.value (live) and works, masking the bug. Fix: button reads the live input value from the DOM. Affects fsbrowse new-folder, rename (button path), and bulk move-to.'
+  witness: 'Fixed kit PromptDialog confirm button to read the live .ds-modal-input value via e.currentTarget.closest(''.ds-modal'') instead of the stale closed-over `value` prop (files-modals.js). Rebuilt dist. browser-64 showed move-confirm submitting empty (move no-op); browser-65 after fix: move to ''target'' succeeded (targetContents=[file_a,file_b], confirmed on disk). Also repairs new-folder/rename button-click paths.'
+  status: completed
