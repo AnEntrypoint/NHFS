@@ -12,21 +12,70 @@ const state = {
     loading: false,
     dragover: false,
     uploads: [],
+    uploadLabel: '',
     viewer: null,
     viewerBody: null,
     confirm: null,
     prompt: null,
-    promptValue: ''
+    promptValue: '',
+    filter: '',
+    sortKey: 'name',   // 'name' | 'size' | 'modified'
+    sortDir: 1,        // 1 asc, -1 desc
+    selected: -1,      // index into the filtered list for keyboard nav
+    dropTarget: null   // path of the dir currently a drag-move drop target
 };
 
 const root = document.getElementById('app');
 const api = (p) => basePath + p;
 
-async function loadFiles(p = './') {
+// ── path helpers ────────────────────────────────────────────
+function pathSegments(p = state.currentPath) {
+    if (p === './' || p === '.' || p === '') return [];
+    return p.replace(/^\.\//, '').split('/').filter(Boolean);
+}
+function pathFromSegments(n) {
+    const segs = pathSegments().slice(0, n);
+    return segs.length ? './' + segs.join('/') : './';
+}
+function joinPath(p, name) {
+    if (p === './' || p === '.' || p === '') return './' + name;
+    return p + '/' + name;
+}
+function parentPath() {
+    const segs = pathSegments();
+    return segs.length ? pathFromSegments(segs.length - 1) : './';
+}
+
+// ── history / deep-link ─────────────────────────────────────
+function pathToHash(p) {
+    const segs = pathSegments(p);
+    return segs.length ? '#/' + segs.map(encodeURIComponent).join('/') : '#/';
+}
+function hashToPath() {
+    const hStr = (location.hash || '').replace(/^#\/?/, '');
+    if (!hStr) return './';
+    const segs = hStr.split('/').filter(Boolean).map(decodeURIComponent);
+    return segs.length ? './' + segs.join('/') : './';
+}
+function syncTitleAndHistory(push) {
+    const segs = pathSegments();
+    const leaf = segs.length ? segs[segs.length - 1] : 'root';
+    document.title = (segs.length ? leaf + ' — ' : '') + appName;
+    const targetHash = pathToHash(state.currentPath);
+    if (push && location.hash !== targetHash) {
+        history.pushState({ path: state.currentPath }, '', targetHash);
+    }
+}
+
+// ── data ────────────────────────────────────────────────────
+async function loadFiles(p = './', push = true) {
     state.currentPath = p;
     state.loading = true;
     state.error = null;
+    state.filter = '';
+    state.selected = -1;
     render();
+    syncTitleAndHistory(push);
     try {
         const r = await fetch(api(`/api/list/${encodeURIComponent(p)}`));
         if (!r.ok) throw new Error('list ' + r.status);
@@ -34,7 +83,8 @@ async function loadFiles(p = './') {
         if (!j.ok) throw new Error(j.error);
         state.files = (j.value.children || []).map(f => ({
             ...f,
-            modified: f.time?.modified ? new Date(f.time.modified).toLocaleDateString() : ''
+            modified: f.time?.modified ? new Date(f.time.modified).toLocaleDateString() : '',
+            modifiedTs: f.time?.modified ? new Date(f.time.modified).getTime() : 0
         }));
     } catch (e) {
         state.error = 'load: ' + e.message;
@@ -44,23 +94,34 @@ async function loadFiles(p = './') {
     }
 }
 
-function pathSegments() {
-    if (state.currentPath === './' || state.currentPath === '.' || state.currentPath === '') return [];
-    return state.currentPath.replace(/^\.\//, '').split('/').filter(Boolean);
+// Files after filter + sort, dirs always first.
+function visibleFiles() {
+    const q = state.filter.trim().toLowerCase();
+    let list = state.files;
+    if (q) list = list.filter(f => f.name.toLowerCase().includes(q));
+    const dir = state.sortDir;
+    const key = state.sortKey;
+    return [...list].sort((a, b) => {
+        if (a.type === 'dir' && b.type !== 'dir') return -1;
+        if (a.type !== 'dir' && b.type === 'dir') return 1;
+        let cmp;
+        if (key === 'size') cmp = (a.size || 0) - (b.size || 0);
+        else if (key === 'modified') cmp = (a.modifiedTs || 0) - (b.modifiedTs || 0);
+        else cmp = a.name.localeCompare(b.name);
+        return cmp * dir;
+    });
 }
 
-function pathFromSegments(n) {
-    const segs = pathSegments().slice(0, n);
-    return segs.length ? './' + segs.join('/') : './';
+function previewableFiles() {
+    return visibleFiles().filter(f => f.type !== 'dir');
 }
 
-function joinPath(p, name) {
-    if (p === './' || p === '.' || p === '') return './' + name;
-    return p + '/' + name;
-}
+// ── viewer ──────────────────────────────────────────────────
+let lastFocused = null;
 
 async function openFile(file) {
     if (file.type === 'dir') return loadFiles(file.path);
+    lastFocused = document.activeElement;
     state.viewer = file;
     state.viewerBody = h('div', { class: 'ds-preview-fallback' }, h('span', { class: 'ds-preview-glyph' }, '⏳'), h('span', {}, 'loading…'));
     render();
@@ -96,16 +157,45 @@ async function openFile(file) {
     render();
 }
 
+function closeViewer() {
+    state.viewer = null;
+    state.viewerBody = null;
+    render();
+    if (lastFocused && document.contains(lastFocused)) {
+        try { lastFocused.focus(); } catch {}
+    }
+    lastFocused = null;
+}
+
+function stepViewer(delta) {
+    if (!state.viewer) return;
+    const prev = previewableFiles();
+    const idx = prev.findIndex(f => f.path === state.viewer.path);
+    if (idx === -1) return;
+    const next = prev[(idx + delta + prev.length) % prev.length];
+    if (next) openFile(next);
+}
+
 function downloadFile(file) {
     window.location.href = api(`/api/download/${encodeURIComponent(file.path)}`);
 }
 
+// ── error toast (auto-dismiss) ──────────────────────────────
+let errorTimer = null;
+function setError(msg) {
+    state.error = msg;
+    if (errorTimer) clearTimeout(errorTimer);
+    if (msg) errorTimer = setTimeout(() => { state.error = null; render(); }, 6000);
+    render();
+}
+
+// ── row actions ─────────────────────────────────────────────
 function rowAction(act, file) {
     if (act === 'download') return downloadFile(file);
     if (act === 'delete') {
         state.confirm = {
             title: 'delete ' + file.name + '?',
-            message: file.type === 'dir' ? 'this will recursively delete the directory.' : 'this cannot be undone.',
+            message: file.type === 'dir' ? 'this will recursively delete the directory and everything inside it.' : 'this cannot be undone.',
             destructive: true,
             onConfirm: async () => {
                 state.confirm = null;
@@ -115,10 +205,9 @@ function rowAction(act, file) {
                         const j = await r.json().catch(() => ({}));
                         throw new Error(j.error || 'delete ' + r.status);
                     }
-                    await loadFiles(state.currentPath);
+                    await loadFiles(state.currentPath, false);
                 } catch (e) {
-                    state.error = 'delete: ' + e.message;
-                    render();
+                    setError('delete: ' + e.message);
                 }
             },
             onCancel: () => { state.confirm = null; render(); }
@@ -131,10 +220,11 @@ function rowAction(act, file) {
             title: 'rename ' + file.name,
             value: file.name,
             confirmLabel: 'rename',
+            selectBasename: true,
             onConfirm: async (v) => {
                 const newName = (v || '').trim();
                 state.prompt = null; state.promptValue = '';
-                if (!newName) { render(); return; }
+                if (!newName || newName === file.name) { render(); return; }
                 try {
                     const fd = new FormData();
                     fd.append('path', file.path);
@@ -142,10 +232,9 @@ function rowAction(act, file) {
                     const r = await fetch(api('/api/rename'), { method: 'POST', body: fd });
                     const j = await r.json();
                     if (!j.ok) throw new Error(j.error);
-                    await loadFiles(state.currentPath);
+                    await loadFiles(state.currentPath, false);
                 } catch (e) {
-                    state.error = 'rename: ' + e.message;
-                    render();
+                    setError('rename: ' + e.message);
                 }
             },
             onCancel: () => { state.prompt = null; state.promptValue = ''; render(); }
@@ -155,11 +244,27 @@ function rowAction(act, file) {
     }
 }
 
+async function moveFile(file, destDir) {
+    if (file.path === destDir) return;
+    try {
+        const fd = new FormData();
+        fd.append('source', file.path);
+        fd.append('destination', destDir);
+        const r = await fetch(api('/api/move'), { method: 'POST', body: fd });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error);
+        await loadFiles(state.currentPath, false);
+    } catch (e) {
+        setError('move: ' + e.message);
+    }
+}
+
 function newFolder() {
     state.prompt = {
         title: 'new folder',
         value: '',
         confirmLabel: 'create',
+        placeholder: 'folder name',
         onConfirm: async (v) => {
             const name = (v || '').trim();
             state.prompt = null; state.promptValue = '';
@@ -170,10 +275,9 @@ function newFolder() {
                 const r = await fetch(api('/api/mkdir'), { method: 'POST', body: fd });
                 const j = await r.json();
                 if (!j.ok) throw new Error(j.error);
-                await loadFiles(state.currentPath);
+                await loadFiles(state.currentPath, false);
             } catch (e) {
-                state.error = 'mkdir: ' + e.message;
-                render();
+                setError('mkdir: ' + e.message);
             }
         },
         onCancel: () => { state.prompt = null; state.promptValue = ''; render(); }
@@ -182,25 +286,44 @@ function newFolder() {
     render();
 }
 
-async function uploadFiles(fileList) {
+// ── upload with real progress (XHR) ─────────────────────────
+function uploadFiles(fileList) {
     if (!fileList || !fileList.length) return;
-    const items = Array.from(fileList).map(f => ({ name: f.name, pct: 0, done: false }));
-    state.uploads = items;
+    const files = Array.from(fileList);
+    const total = files.reduce((s, f) => s + (f.size || 0), 0);
+    // One aggregate item — a single request carries all files, so a single
+    // honest bar (driven by total bytes) beats faking per-file accuracy.
+    state.uploadLabel = files.length === 1 ? files[0].name : files.length + ' files';
+    state.uploads = [{ name: state.uploadLabel, pct: 0, done: false }];
     render();
+
     const fd = new FormData();
-    for (const f of fileList) fd.append('files', f);
-    try {
-        const r = await fetch(api(`/api/upload?path=${encodeURIComponent(state.currentPath)}`), { method: 'POST', body: fd });
-        if (!r.ok) throw new Error('upload ' + r.status);
-        items.forEach(it => { it.pct = 100; it.done = true; });
+    for (const f of files) fd.append('files', f);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', api(`/api/upload?path=${encodeURIComponent(state.currentPath)}`));
+    xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const pct = Math.round((e.loaded / (e.total || total || 1)) * 100);
+        state.uploads = [{ name: state.uploadLabel, pct: Math.min(99, pct), done: false }];
         render();
-        await loadFiles(state.currentPath);
-        setTimeout(() => { state.uploads = []; render(); }, 1200);
-    } catch (e) {
-        items.forEach(it => { it.error = true; });
-        state.error = 'upload: ' + e.message;
-        render();
-    }
+    };
+    xhr.onload = async () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+            state.uploads = [{ name: state.uploadLabel, pct: 100, done: true }];
+            render();
+            await loadFiles(state.currentPath, false);
+            setTimeout(() => { state.uploads = []; render(); }, 1200);
+        } else {
+            state.uploads = [{ name: state.uploadLabel, pct: 0, error: true }];
+            setError('upload: ' + xhr.status);
+        }
+    };
+    xhr.onerror = () => {
+        state.uploads = [{ name: state.uploadLabel, pct: 0, error: true }];
+        setError('upload: network error');
+    };
+    xhr.send(fd);
 }
 
 function pickFiles() {
@@ -210,10 +333,49 @@ function pickFiles() {
     input.click();
 }
 
+// ── sort control ────────────────────────────────────────────
+function cycleSort(key) {
+    if (state.sortKey === key) state.sortDir = -state.sortDir;
+    else { state.sortKey = key; state.sortDir = 1; }
+    state.selected = -1;
+    render();
+}
+function sortLabel() {
+    const arrow = state.sortDir === 1 ? '↑' : '↓';
+    return state.sortKey + ' ' + arrow;
+}
+
+// Kit Btn renders <a href="#"> and does not preventDefault, so a raw click
+// would append '#' to the URL and clobber our hash-based routing. Wrap every
+// Btn handler so the anchor's default navigation is suppressed.
+function guard(fn) {
+    return (e) => { if (e && e.preventDefault) e.preventDefault(); fn(); };
+}
+
+// ── render ──────────────────────────────────────────────────
 function App() {
     const segs = pathSegments();
+    const files = visibleFiles();
+    // tag the keyboard-selected row as active
+    const decorated = files.map((f, i) => ({ ...f, active: i === state.selected }));
+
+    const filterInput = h('input', {
+        class: 'input ds-filter-input',
+        type: 'search',
+        placeholder: 'filter…',
+        value: state.filter,
+        'aria-label': 'filter files by name',
+        oninput: (e) => { state.filter = e.target.value; state.selected = -1; render(); }
+    });
+
     const main = h('div', { class: 'ds-file-stage' },
-        state.error ? h('div', { class: 'ds-error-banner', onclick: () => { state.error = null; render(); } }, state.error + ' (click to dismiss)') : null,
+        h('div', {
+            class: 'ds-sr-live',
+            'aria-live': 'polite',
+            'aria-atomic': 'true',
+            style: { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }
+        }, state.error ? state.error : (state.loading ? 'loading directory' : files.length + ' items')),
+        state.error ? h('div', { class: 'ds-error-banner', role: 'alert', onclick: () => { state.error = null; render(); } }, state.error + ' (click to dismiss)') : null,
         C.BreadcrumbPath({
             segments: segs,
             root: appName,
@@ -221,13 +383,16 @@ function App() {
         }),
         C.FileToolbar({
             left: [
-                C.Btn({ onClick: pickFiles, children: '⇪ upload' }),
-                C.Btn({ onClick: newFolder, children: '+ folder' }),
-                C.Btn({ onClick: () => loadFiles(state.currentPath), children: '↻ refresh' })
-            ],
+                C.Btn({ onClick: guard(pickFiles), children: '⇪ upload' }),
+                C.Btn({ onClick: guard(newFolder), children: '+ folder' }),
+                C.Btn({ onClick: guard(() => loadFiles(state.currentPath, false)), children: '↻ refresh' }),
+                segs.length ? C.Btn({ onClick: guard(() => loadFiles(parentPath())), children: '↑ up' }) : null,
+                C.Btn({ onClick: guard(() => cycleSort(state.sortKey === 'name' ? 'modified' : state.sortKey === 'modified' ? 'size' : 'name')), children: '⇅ ' + sortLabel() })
+            ].filter(Boolean),
             right: [
+                filterInput,
                 h('span', { class: 'meta ds-meta-mono' },
-                    state.loading ? 'loading…' : String(state.files.length).padStart(2, '0') + ' items'
+                    state.loading ? 'loading…' : String(files.length).padStart(2, '0') + ' items'
                 )
             ]
         }),
@@ -240,32 +405,23 @@ function App() {
             onPick: pickFiles
         }),
         C.UploadProgress({ items: state.uploads }),
-        C.FileGrid({
-            files: state.files,
-            onOpen: openFile,
-            onAction: rowAction,
-            emptyText: state.loading ? 'loading…' : 'empty directory — drop files or create a folder.'
-        })
+        FileList(decorated)
     );
 
     return h('div', {},
         C.AppShell({
-            topbar: C.Topbar({
-                brand: appName,
-                leaf: 'files',
-                items: []
-            }),
+            topbar: C.Topbar({ brand: appName, leaf: 'files', items: [] }),
             crumb: C.Crumb({ trail: [appName], leaf: state.currentPath === './' ? 'root' : segs[segs.length - 1] || 'root' }),
             main,
             status: C.Status({
-                left: ['main', '• ' + state.files.length + ' items'],
+                left: ['main', '• ' + files.length + ' items'],
                 right: [state.loading ? 'loading' : 'live']
             })
         }),
         state.viewer ? C.FileViewer({
             file: state.viewer,
             body: state.viewerBody,
-            onClose: () => { state.viewer = null; state.viewerBody = null; render(); },
+            onClose: closeViewer,
             onAction: (act) => { if (act === 'download') downloadFile(state.viewer); }
         }) : null,
         state.confirm ? C.ConfirmDialog(state.confirm) : null,
@@ -277,17 +433,133 @@ function App() {
     );
 }
 
-function render() { applyDiff(root, [App()]); }
+// FileGrid wrapper that adds drag-to-move and a stable loading state.
+function FileList(files) {
+    if (state.loading && !files.length) {
+        return h('div', { class: 'ds-file-grid ds-file-grid-loading', 'aria-busy': 'true' },
+            ...Array.from({ length: 5 }).map((_, i) =>
+                h('div', { key: 'sk' + i, class: 'ds-file-skeleton' })
+            )
+        );
+    }
+    const emptyText = state.filter
+        ? 'no files match “' + state.filter + '”'
+        : 'empty directory — drop files or create a folder.';
+    const grid = C.FileGrid({
+        files,
+        onOpen: openFile,
+        onAction: rowAction,
+        emptyText
+    });
+    // Augment the rendered grid's row vnodes with drag handlers (move support).
+    if (grid && grid.props && Array.isArray(grid.props.children)) {
+        grid.props.children.forEach((rowV, i) => {
+            const f = files[i];
+            if (!rowV || !f) return;
+            rowV.props = rowV.props || {};
+            rowV.props.draggable = true;
+            rowV.props.ondragstart = (e) => {
+                e.dataTransfer.setData('text/fsbrowse-path', f.path);
+                e.dataTransfer.effectAllowed = 'move';
+            };
+            if (f.type === 'dir') {
+                rowV.props.ondragover = (e) => {
+                    if (e.dataTransfer.types.includes('text/fsbrowse-path')) {
+                        e.preventDefault();
+                        if (state.dropTarget !== f.path) { state.dropTarget = f.path; render(); }
+                    }
+                };
+                rowV.props.ondragleave = () => { if (state.dropTarget === f.path) { state.dropTarget = null; render(); } };
+                rowV.props.ondrop = (e) => {
+                    e.preventDefault();
+                    const src = e.dataTransfer.getData('text/fsbrowse-path');
+                    state.dropTarget = null;
+                    const srcFile = state.files.find(x => x.path === src);
+                    if (srcFile) moveFile(srcFile, f.path);
+                    render();
+                };
+                if (state.dropTarget === f.path) {
+                    rowV.props.class = (rowV.props.class || '') + ' ds-drop-target';
+                }
+            }
+        });
+    }
+    return grid;
+}
 
+let lastPromptSelected = false;
+function applyPromptSelection() {
+    if (state.prompt && state.prompt.selectBasename && !lastPromptSelected) {
+        const inp = root.querySelector('.ds-modal-input');
+        if (inp) {
+            const v = inp.value;
+            const dot = v.lastIndexOf('.');
+            inp.focus();
+            inp.setSelectionRange(0, dot > 0 ? dot : v.length);
+            lastPromptSelected = true;
+        }
+    }
+    if (!state.prompt) lastPromptSelected = false;
+}
+function render() {
+    applyDiff(root, [App()]);
+    requestAnimationFrame(applyPromptSelection);
+}
+
+// ── keyboard ────────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    if (state.viewer) { state.viewer = null; state.viewerBody = null; render(); return; }
-    if (state.prompt) { state.prompt.onCancel && state.prompt.onCancel(); return; }
-    if (state.confirm) { state.confirm.onCancel && state.confirm.onCancel(); }
+    // Modal-priority Escape handling
+    if (e.key === 'Escape') {
+        if (state.viewer) { closeViewer(); return; }
+        if (state.prompt) { state.prompt.onCancel && state.prompt.onCancel(); return; }
+        if (state.confirm) { state.confirm.onCancel && state.confirm.onCancel(); return; }
+        return;
+    }
+    // Viewer prev/next
+    if (state.viewer) {
+        if (e.key === 'ArrowRight') { e.preventDefault(); stepViewer(1); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); stepViewer(-1); }
+        return;
+    }
+    // Don't hijack typing in inputs
+    const tag = (e.target && e.target.tagName) || '';
+    if (state.prompt || state.confirm || tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    const files = visibleFiles();
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        state.selected = Math.min(files.length - 1, state.selected + 1);
+        render(); focusSelected();
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        state.selected = Math.max(0, state.selected - 1);
+        render(); focusSelected();
+    } else if (e.key === 'Enter' && state.selected >= 0 && files[state.selected]) {
+        e.preventDefault();
+        openFile(files[state.selected]);
+    } else if (e.key === 'Backspace' && pathSegments().length) {
+        e.preventDefault();
+        loadFiles(parentPath());
+    }
 });
 
+function focusSelected() {
+    const rows = root.querySelectorAll('.ds-file-row');
+    const el = rows[state.selected];
+    if (el) el.focus();
+}
+
+// drag/drop page guards (prevent browser navigating to dropped files)
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
     document.addEventListener(evt, e => e.preventDefault());
 });
 
-loadFiles('./');
+// history
+window.addEventListener('popstate', () => {
+    const p = hashToPath();
+    if (p !== state.currentPath) loadFiles(p, false);
+});
+
+// initial load — honor a deep-link hash if present
+loadFiles(hashToPath(), false);
+syncTitleAndHistory(false);

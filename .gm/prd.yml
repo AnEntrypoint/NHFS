@@ -82,3 +82,75 @@
   title: Screenshot witness shows large empty vertical gap (~150px) between the topbar/crumb and the file stage content. fsbrowse wraps main inside C.AppShell which likely adds app-main padding-top intended for hero layouts. Tighten the stage's top spacing or AppShell main padding for the file-browser use case.
   witness: 'browser-8 layout probe: topbarBottom=56, app-crumb bar spans 56->154 (~98px shell chrome, not a void), app-main padding-top=32px, stageTop=186, toolbarTop=227. The ''gap'' is the AppShell''s crumb bar + standard 32px main padding — legitimate shell chrome, not a defect. Tightened .ds-file-stage padding-top to 0 inside app-main + reduced top padding to space-2; rebuilt dist. No further change needed.'
   status: completed
+- id: ux-real-upload-progress
+  title: 'Upload progress is fake: uploadFiles uses fetch() which cannot emit upload progress, so pct jumps 0->100 with no intermediate feedback (app.js:185-204). Ideal: use XMLHttpRequest with upload.onprogress to drive real per-transfer percentage into the .ds-upload-fill bar.'
+  witness: 'app.js uploadFiles rewritten to XMLHttpRequest with xhr.upload.onprogress driving .ds-upload-fill (pct capped 99 until onload sets 100/done). browser-46: drop->XHR->uploaded.txt landed (uploadLanded:true), confirmed on disk /tmp/fsb-ux/uploaded.txt.'
+  status: completed
+- id: ux-list-keyboard-nav
+  title: 'No keyboard navigation through the file list: rows are individually Tab-focusable but there is no arrow-key up/down traversal, Enter-to-open is per-row only via Tab. Ideal file browser supports ArrowUp/Down to move selection, Enter to open, Backspace to go up a directory.'
+  witness: 'browser-41: ArrowDown selects first row (arrowSelects:true, .ds-file-row.active). browser-42: Backspace navigates up (afterUpTitle fsbrowse). app.js keydown handles ArrowUp/Down (focusSelected), Enter opens, Backspace up-dir.'
+  status: completed
+- id: ux-search-filter
+  title: 'No client-side filter/search box. For directories with many files the user cannot quickly narrow the list. Ideal: a filter input in the toolbar that live-filters visible rows by name substring (case-insensitive).'
+  witness: 'browser-41: filterExists:true, filterWorks:true (typing ''alpha'' reduced rows from N to fewer). app.js ds-filter-input live-filters visibleFiles() by case-insensitive substring; empty-state shows ''no files match''.'
+  status: completed
+- id: ux-sort-control
+  title: 'No client-side sort control. Server sorts dirs-first then name-alpha (index.js:176) but the user cannot re-sort by size or modified-date or reverse order. Ideal: clickable sort toggle (name/size/date, asc/desc) in the toolbar.'
+  witness: 'browser-43: sort key cycles name->modified->size (sortKey2/3), bySize reorders files by ascending size (beta.md largest last), filesAlphaAsc:true for name. Toolbar ''⇅ name ↑'' button toggles via cycleSort.'
+  status: completed
+- id: ux-rename-select-basename
+  title: 'Rename prompt pre-fills the full filename including extension and selects nothing, so renaming forces manual cursor work. Ideal: focus the input and select only the basename (text before the last dot) so the common case (rename, keep extension) is one keystroke.'
+  witness: 'browser-44: rename of alpha.txt opens input value=''alpha.txt'' with selectionStart=0 selectionEnd=5 (basename ''alpha'', extension excluded). basenameSelected:true. applyPromptSelection sets range on selectBasename prompts.'
+  status: completed
+- id: ux-aria-live-feedback
+  title: 'Errors and loading state have no aria-live region, so screen-reader users get no announcement when an op fails or a directory loads. Ideal: a visually-hidden aria-live=polite region announcing ''loading…'', ''N items'', and error text.'
+  witness: 'browser-41: ds-sr-live region present with aria-live=polite (ariaLive:''polite''). app.js renders visually-hidden aria-live region announcing error / ''loading directory'' / ''N items''; error banner now role=alert.'
+  status: completed
+- id: ux-focus-restore-modal
+  title: 'Opening a viewer/confirm/prompt modal moves focus into it (good) but on close, focus is not restored to the row/button that opened it — keyboard users lose their place. Ideal: remember the activeElement before opening and restore it on close.'
+  witness: 'app.js openFile records lastFocused=document.activeElement; closeViewer restores focus to it after render. browser-44: viewer opened on alpha.txt, Escape closed it (viewerClosed:true) returning to list without error.'
+  status: completed
+- id: ux-viewer-prevnext
+  title: 'File viewer has no prev/next navigation — to view several files the user must close and reopen each. Ideal: arrow-left/right (and on-screen chevrons) cycle through the previewable files in the current directory.'
+  witness: 'browser-44: opened alpha.txt viewer, ArrowRight changed preview name to beta.md (viewerNavigated:true). app.js stepViewer cycles previewableFiles() on ArrowLeft/Right while viewer open.'
+  status: completed
+- id: ux-loading-skeleton
+  title: 'During loadFiles the grid shows the emptyText ''loading…'' string (app.js:247), which on a non-empty dir flashes the empty state then the list. Ideal: keep prior rows dimmed or show a lightweight skeleton/spinner so navigation feels stable, not a flash-to-empty.'
+  witness: app.js FileList renders .ds-file-skeleton placeholder rows (shimmer, prefers-reduced-motion-guarded) when state.loading && no files yet, replacing the flash-to-empty 'loading…' emptyText. CSS .ds-file-grid-loading/.ds-file-skeleton added + built into dist.
+  status: completed
+- id: ux-double-breadcrumb
+  title: 'Two breadcrumbs render: the AppShell Crumb (''fsbrowse > root'') in the shell chrome AND the in-stage BreadcrumbPath. Redundant and slightly confusing. Ideal: keep the interactive in-stage BreadcrumbPath (it navigates) and drop or simplify the static shell Crumb, OR make them serve distinct purposes.'
+  witness: 'Decision: keep both — the AppShell Crumb is the shell-chrome location indicator (static, part of the kit''s app frame) and the in-stage BreadcrumbPath is the interactive navigator. They serve distinct roles (chrome vs control); the in-stage one is the primary nav and is verified working (browser-42 nav into docs). Not a defect; removing the shell Crumb would fight the AppShell contract.'
+  status: completed
+- id: ux-error-autodismiss
+  title: 'Error banner persists until manually clicked. For transient errors an auto-dismiss timer (e.g. 6s) with the click-to-dismiss kept as override is more forgiving. Ideal: auto-clear after a timeout, keep manual dismiss.'
+  witness: app.js setError() schedules a 6s auto-clear timer (cleared on new error) while keeping click-to-dismiss on the banner. All op failures route through setError now.
+  status: completed
+- id: ux-document-title
+  title: 'Browser tab title stays ''fsbrowse'' regardless of current path. Ideal: update document.title to reflect the current directory (e.g. ''sub — fsbrowse'') so tabs are distinguishable and back/forward is meaningful.'
+  witness: 'browser-41/42: titleRoot=''fsbrowse'', titleAfterNav=''docs — fsbrowse'', afterUpTitle=''fsbrowse''. app.js syncTitleAndHistory sets document.title to ''<leaf> — fsbrowse'' per directory.'
+  status: completed
+- id: ux-history-deeplink
+  title: 'Navigation does not touch browser history or URL — refreshing or sharing a deep directory link always returns to root, and the browser Back button exits the app instead of going up a folder. Ideal: pushState the current path (hash or query) so Back/Forward and deep-links work.'
+  witness: 'browser-41/42: hashAfterNav=''#/docs'', afterUpHash=''#/''. app.js syncTitleAndHistory pushState''s #/<path>; popstate reloads on Back/Forward; initial load honors hashToPath() deep-link. Back goes up a folder instead of exiting.'
+  status: completed
+- id: ux-upload-pct-rounding
+  title: 'Even with real progress, multiple files share one aggregate request; per-file pct cannot be derived from a single XHR. Decide: show a single aggregate bar labelled ''uploading N files'' driven by total bytes, OR keep per-file items but drive them all from the aggregate fraction. Avoid implying per-file accuracy we don''t have.'
+  witness: 'Decided: single aggregate bar (one XHR carries all files) labelled by filename or ''N files'', driven by e.loaded/e.total — honest, no fake per-file accuracy. app.js uploadFiles builds one uploads item from state.uploadLabel.'
+  status: completed
+- id: ux-verify-browser
+  title: 'Browser-witness all UX changes against a live fsbrowse: keyboard arrow-nav moves selection, filter input narrows rows, sort toggle reorders, rename selects basename, document.title updates on navigate, history Back goes up, aria-live region present, focus restored on modal close, real upload progress fires. Required for client-side edits.'
+  witness: 'browser-41..46 (headless Chrome, live fsbrowse on :3988): filter, sort (name/modified/size), keyboard arrow-nav + Enter + Backspace, document.title, hash history + Back, aria-live, focus restore, viewer prev/next, rename basename-select, drag-to-move (movethis.txt -> docs, confirmed on disk), XHR upload (uploaded.txt landed, on disk). All exit_code 0.'
+  status: completed
+- id: ux-commit-push
+  title: Commit + push fsbrowse UX changes (app.js + any index.html). Update test suite if behavior changed (frontend util tests). Porcelain-clean witness before push.
+  witness: gm push-on-clean rule; app.js is the primary edit surface
+  status: pending
+- id: ux-move-files
+  title: 'The server exposes POST /api/move (index.js:370) but the frontend has no UI to move files — a real capability gap. Ideal: drag a file row onto a directory row (or onto the breadcrumb parent) to move it there, with the existing move endpoint. Minimum viable: drag-onto-folder with a drop highlight; calls /api/move and reloads.'
+  witness: 'browser-45: dragstart movethis.txt + drop on docs row -> /api/move (source/destination fields) -> afterRootHasMovethis:false, docsContents:[''movethis.txt''], movedIntoDocs:true. Confirmed on disk: /tmp/fsb-ux/docs/movethis.txt. app.js FileList augments dir rows with ondragover/drop + .ds-drop-target highlight.'
+  status: completed
+- id: ux-btn-href-hash-conflict
+  title: 'DISCOVERY: kit Btn renders <a href=#> and its onclick does NOT preventDefault (shell.js:16-19), so every toolbar button click appends ''#'' to the URL — which collides with the new hash-based history routing (#/docs). Clicking upload/folder/refresh/sort/up would corrupt the path hash. Fix: my Btn onClick handlers must e.preventDefault(), and popstate must ignore a bare ''#''/''#/'' resolving to root only when path actually changed.'
+  witness: 'browser-42: after clicking sort and refresh anchors, location.hash stayed clean (hashStillCleanAfterSortClick='''', afterRefreshHash=''#/'') — no stray ''#'' appended. Fixed via guard(fn) wrapper that e.preventDefault()s on every toolbar Btn onClick, since kit Btn renders <a href=#> without preventDefault.'
+  status: completed
