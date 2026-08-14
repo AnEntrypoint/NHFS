@@ -63,7 +63,11 @@ function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-const DS_UNPKG = 'https://unpkg.com/anentrypoint-design@latest/dist';
+// githack (never caches, unlike jsDelivr/unpkg) serving the design system's
+// main branch directly -- same CDN convention the design repo itself uses
+// for its own cross-repo SDK references (see AnEntrypoint/design commit
+// 77803fa, "switch own cross-repo SDK references from jsDelivr to githack").
+const DS_GITHACK = 'https://raw.githack.com/AnEntrypoint/design/main/dist';
 
 function resolveDesignDist() {
   const candidates = [
@@ -91,13 +95,13 @@ module.exports = function fsbrowse(opts) {
     router.use('/_ds', express.static(dsLocal));
     console.log('[fsbrowse] design system: local', dsLocal);
   } else {
-    console.log('[fsbrowse] design system: unpkg fallback');
+    console.log('[fsbrowse] design system: githack fallback');
   }
 
   router.use((req, res, next) => {
     if (req.path === '/' || req.path === '/index.html') {
       const basePath = req.baseUrl;
-      const dsBase = dsLocal ? `${basePath}/_ds` : DS_UNPKG;
+      const dsBase = dsLocal ? `${basePath}/_ds` : DS_GITHACK;
       let html = fsSync.readFileSync(path.join(publicDir, 'index.html'), 'utf-8');
       const inject = `<script>window.THEME_KEYS='${escapeJsString(themeKeys)}';window.BASEPATH='${escapeJsString(basePath)}';window.DS_BASE='${escapeJsString(dsBase)}';window.APP_NAME='${escapeJsString(name)}';</script>`;
       html = html.replace('<!--INJECT-->', inject);

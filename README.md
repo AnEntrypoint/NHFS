@@ -58,7 +58,7 @@ BASEPATH=           # URL subpath prefix (default: empty, e.g., /files for http:
 **Frontend: 247420 design system + webjsx**
 - `public/index.html` — minimal shell with importmap pointing at the design SDK
 - `public/app.js` — buildless ES module that imports `anentrypoint-design` and renders FileGrid / DropZone / FileViewer / ConfirmDialog / PromptDialog from the SDK
-- No bundler. The SDK ships from `../anentrypoint-design/dist` (sibling repo) when present, otherwise from `unpkg.com/anentrypoint-design@latest`.
+- No bundler. The SDK ships from `../anentrypoint-design/dist` (sibling repo) when present, otherwise from `raw.githack.com/AnEntrypoint/design/main/dist` — always the design system's current `main`, and githack never caches (unlike unpkg/jsDelivr), so a push to that repo is live immediately with no separate CDN purge step.
 - Visual language: tonal surfaces, indicator rails by file type (rail color comes from `data-file-type`), zero borders, zero drop shadows. See [the design system](https://github.com/AnEntrypoint/design) for the full SKILL.md.
 
 **Dependencies: 2 only**
