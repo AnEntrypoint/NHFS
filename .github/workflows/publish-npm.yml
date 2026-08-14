@@ -16,7 +16,13 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: oven-sh/setup-bun@v1
+      # Pinned to the commit the v1 tag resolved to at hardening time
+      # (2026-08-14) rather than the mutable tag itself -- a tag can be
+      # repointed by the action's maintainer (or an attacker who compromises
+      # that repo) with no signal here; a commit SHA cannot silently change
+      # underneath this workflow. Re-pin deliberately on a real upstream
+      # update, never track @v1 again.
+      - uses: oven-sh/setup-bun@f4d14e03ff726c06358e5557344e1da148b56cf7 # v1
 
       - name: Bump version
         run: |
@@ -32,9 +38,21 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
+      # Explicit pathspec (never -A/.) plus a hard fail if the working tree
+      # has any OTHER modification at this point -- catches a compromised
+      # action/lifecycle-script silently rewriting a tracked file (this is
+      # exactly how index.js got a C2 backdoor appended in a "chore: bump
+      # version" commit on 2026-07-30: something staged more than
+      # package.json before this step's git commit ran, and a bare
+      # `git add package.json` alone does not explain that).
       - name: Commit version bump
         run: |
-          git add package.json
+          if [ -n "$(git status --porcelain -- . ':!package.json')" ]; then
+            echo "::error::unexpected working-tree changes outside package.json before version-bump commit -- refusing to commit, possible compromised action/dependency" >&2
+            git status --porcelain
+            exit 1
+          fi
+          git add -- package.json
           git commit -m "chore: bump version to ${{ env.NEW_VERSION }}"
           git push
 
@@ -42,5 +60,9 @@ jobs:
         run: |
           npm config set //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
 
+      # --ignore-scripts: npm publish runs prepare/prepublishOnly lifecycle
+      # scripts by default, which is exactly the kind of implicit code
+      # execution a compromised transitive dependency could abuse during
+      # this job. This package has no legitimate build step that needs one.
       - name: Publish to npm
-        run: npm publish
+        run: npm publish --ignore-scripts

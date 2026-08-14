@@ -27,6 +27,7 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
 
 # vercel
 .vercel
@@ -93,4 +94,3 @@ package-lock.json
 .gm/residual-check-fired
 .gm/gm-fired-this-turn
 .codeinsight
-config.bat
